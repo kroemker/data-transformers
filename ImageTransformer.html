@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image Transformer (Dark Mode)</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+      min-height: 0;
+    }
+
+    label {
+      margin: 10px 0 5px;
+      font-weight: bold;
+      color: #cfcfcf;
+    }
+
+    #editorContainer {
+      flex: 1;
+      min-height: 180px;
+      border: 1px solid #444;
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      align-self: flex-start;
+      background-color: #0e639c;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #1177bb;
+    }
+
+    .error-box {
+      color: #ff5555;
+      font-weight: bold;
+      border: 1px solid #ff5555;
+      padding: 10px;
+      background-color: #2e1e1e;
+      display: none;
+      margin-bottom: 10px;
+    }
+
+    .error-symbol {
+      margin-right: 10px;
+    }
+
+    .images-row {
+      display: flex;
+      gap: 10px;
+      height: 280px;
+      flex-shrink: 0;
+    }
+
+    .image-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .image-panel label {
+      margin-top: 0;
+    }
+
+    .image-box {
+      flex: 1;
+      background-color: #2d2d2d;
+      border: 1px solid #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #dropZone {
+      cursor: pointer;
+      border: 2px dashed #555;
+    }
+
+    #dropZone.dragover {
+      border-color: #0e639c;
+      background-color: #1e2a3a;
+    }
+
+    #inputPreview {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+
+    .output-box {
+      flex-wrap: wrap;
+      align-content: flex-start;
+      overflow: auto;
+      gap: 4px;
+      padding: 4px;
+      cursor: default;
+    }
+
+    .output-box .placeholder {
+      width: 100%;
+      text-align: center;
+    }
+
+    .placeholder {
+      color: #555;
+      font-size: 13px;
+      text-align: center;
+      padding: 10px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px; margin-top: 10px;">
+      <label style="margin: 0;">TypeScript Code:</label>
+      <select id="snippetSelector">
+        <option value="">-- Select Snippet --</option>
+      </select>
+    </div>
+
+    <div id="editorContainer"></div>
+
+    <button id="runButton">Run Code</button>
+
+    <div id="errorBox" class="error-box">
+      <span class="error-symbol">❌</span>
+      <span id="errorMessage"></span>
+    </div>
+
+    <div class="images-row">
+      <div class="image-panel">
+        <label>Input Image:</label>
+        <div class="image-box" id="dropZone">
+          <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <img id="inputPreview" alt="Input">
+          <div class="placeholder" id="dropPlaceholder">Drop image here<br>or click to select</div>
+        </div>
+      </div>
+      <div class="image-panel">
+        <label>Output Image:</label>
+        <div class="image-box output-box" id="outputBox">
+          <div class="placeholder" id="outputPlaceholder">Output will appear here</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/typescript@5.4.5/lib/typescript.js"></script>
+  <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script>
+    let editor;
+    let inputCanvas = null;
+
+    const defaultCode = `function process(input: HTMLCanvasElement): HTMLCanvasElement {
+  const output = document.createElement('canvas');
+  output.width = input.width;
+  output.height = input.height;
+  const ctx = output.getContext('2d')!;
+  ctx.drawImage(input, 0, 0);
+  const imageData = ctx.getImageData(0, 0, output.width, output.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return output;
+}`;
+
+    require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editorContainer'), {
+        value: defaultCode,
+        language: 'typescript',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false }
+      });
+    });
+
+    // --- Image loading ---
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const inputPreview = document.getElementById('inputPreview');
+    const dropPlaceholder = document.getElementById('dropPlaceholder');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadImage(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) loadImage(fileInput.files[0]);
+    });
+
+    function loadImage(file) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        inputCanvas = document.createElement('canvas');
+        inputCanvas.width = img.naturalWidth;
+        inputCanvas.height = img.naturalHeight;
+        inputCanvas.getContext('2d').drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        inputPreview.src = inputCanvas.toDataURL();
+        inputPreview.style.display = 'block';
+        dropPlaceholder.style.display = 'none';
+      };
+      img.src = url;
+    }
+
+    // --- Run ---
+
+    function renderOutput(result) {
+      const outputBox = document.getElementById('outputBox');
+      const outputPlaceholder = document.getElementById('outputPlaceholder');
+
+      const canvases = Array.isArray(result) ? result : [result];
+      if (canvases.length === 0 || !canvases.every(c => c instanceof HTMLCanvasElement)) {
+        throw new Error('process() must return an HTMLCanvasElement or HTMLCanvasElement[]');
+      }
+
+      outputBox.innerHTML = '';
+      outputPlaceholder.style.display = 'none';
+
+      const cols = Math.ceil(Math.sqrt(canvases.length));
+      const pct = (100 / cols).toFixed(4);
+
+      canvases.forEach(canvas => {
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL();
+        img.style.objectFit = 'contain';
+        if (canvases.length === 1) {
+          img.style.maxWidth = '100%';
+          img.style.maxHeight = '100%';
+        } else {
+          img.style.width = 'calc(' + pct + '% - 4px)';
+        }
+        outputBox.appendChild(img);
+      });
+    }
+
+    document.getElementById('runButton').addEventListener('click', () => {
+      if (!inputCanvas) {
+        alert('Please load an image first.');
+        return;
+      }
+      if (typeof ts === 'undefined') {
+        alert('TypeScript compiler not yet loaded.');
+        return;
+      }
+
+      const tsCode = editor.getValue();
+      const errorBox = document.getElementById('errorBox');
+      const errorMessage = document.getElementById('errorMessage');
+
+      errorBox.style.display = 'none';
+      errorMessage.textContent = '';
+
+      try {
+        const jsCode = ts.transpile(tsCode);
+        const func = new Function(jsCode + '\nreturn process;')();
+        renderOutput(func(inputCanvas));
+      } catch (e) {
+        errorBox.style.display = 'block';
+        errorMessage.textContent = e.message;
+      }
+    });
+
+    // --- Snippets ---
+
+    const snippets = [
+      {
+        name: 'Grayscale',
+        snippet: defaultCode
+      },
+      {
+        name: 'Invert Colors',
+        snippet: `function process(input: HTMLCanvasElement): HTMLCanvasElement {
+  const output = document.createElement('canvas');
+  output.width = input.width;
+  output.height = input.height;
+  const ctx = output.getContext('2d')!;
+  ctx.drawImage(input, 0, 0);
+  const imageData = ctx.getImageData(0, 0, output.width, output.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i]     = 255 - data[i];
+    data[i + 1] = 255 - data[i + 1];
+    data[i + 2] = 255 - data[i + 2];
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return output;
+}`
+      },
+      {
+        name: 'Sepia',
+        snippet: `function process(input: HTMLCanvasElement): HTMLCanvasElement {
+  const output = document.createElement('canvas');
+  output.width = input.width;
+  output.height = input.height;
+  const ctx = output.getContext('2d')!;
+  ctx.drawImage(input, 0, 0);
+  const imageData = ctx.getImageData(0, 0, output.width, output.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    data[i]     = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+    data[i + 1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+    data[i + 2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return output;
+}`
+      },
+      {
+        name: '2x2 Splitter',
+        snippet: `function process(input: HTMLCanvasElement): HTMLCanvasElement[] {
+  const hw = Math.floor(input.width / 2);
+  const hh = Math.floor(input.height / 2);
+  const regions: [number, number][] = [
+    [0, 0], [hw, 0],
+    [0, hh], [hw, hh],
+  ];
+  return regions.map(([sx, sy]) => {
+    const tile = document.createElement('canvas');
+    tile.width = hw;
+    tile.height = hh;
+    tile.getContext('2d')!.drawImage(input, sx, sy, hw, hh, 0, 0, hw, hh);
+    return tile;
+  });
+}`
+      },
+      {
+        name: 'Pixelate',
+        snippet: `function process(input: HTMLCanvasElement): HTMLCanvasElement {
+  const blockSize = 10;
+  const output = document.createElement('canvas');
+  output.width = input.width;
+  output.height = input.height;
+  const ctx = output.getContext('2d')!;
+  const srcData = input.getContext('2d')!.getImageData(0, 0, input.width, input.height).data;
+  for (let y = 0; y < input.height; y += blockSize) {
+    for (let x = 0; x < input.width; x += blockSize) {
+      const idx = (y * input.width + x) * 4;
+      ctx.fillStyle = 'rgb(' + srcData[idx] + ',' + srcData[idx + 1] + ',' + srcData[idx + 2] + ')';
+      ctx.fillRect(x, y, Math.min(blockSize, input.width - x), Math.min(blockSize, input.height - y));
+    }
+  }
+  return output;
+}`
+      }
+    ];
+
+    const snippetSelector = document.getElementById('snippetSelector');
+
+    snippets.forEach((item, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = item.name;
+      snippetSelector.appendChild(option);
+    });
+
+    snippetSelector.addEventListener('change', () => {
+      const i = snippetSelector.value;
+      if (i !== '' && editor) {
+        editor.setValue(snippets[i].snippet.trim());
+      }
+    });
+  </script>
+</body>
+</html>
