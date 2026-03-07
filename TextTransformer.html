@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TS Executor with Monaco (Dark Mode)</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    label {
+      margin: 10px 0 5px;
+      font-weight: bold;
+      color: #cfcfcf;
+    }
+
+    textarea {
+      width: 100%;
+      height: 30%;
+      resize: none;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 8px;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+      background-color: #2d2d2d;
+      color: #d4d4d4;
+      border: 1px solid #444;
+      text-wrap-mode: nowrap;
+    }
+
+    #editorContainer {
+      flex: 1;
+      border: 1px solid #444;
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      align-self: flex-start;
+      background-color: #0e639c;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #1177bb;
+    }
+
+    .error-box {
+      color: #ff5555;
+      font-weight: bold;
+      border: 1px solid #ff5555;
+      padding: 10px;
+      background-color: #2e1e1e;
+      display: none;
+      margin-bottom: 10px;
+    }
+
+    .error-symbol {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <label for="inputText">Input Text:</label>
+    <textarea id="inputText" placeholder="Enter input text here..."></textarea>
+
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+      <label for="editorContainer">TypeScript Code:</label>
+      <select id="snippetSelector">
+        <option value="">-- Select Snippet --</option>
+      </select>
+    </div>
+    <div id="editorContainer"></div>
+
+    <button id="runButton">Run Code</button>
+
+    <div id="errorBox" class="error-box">
+      <span class="error-symbol">❌</span>
+      <span id="errorMessage"></span>
+    </div>
+
+    <label for="outputText">Output Text:</label>
+    <textarea id="outputText" readonly placeholder="Output will appear here..."></textarea>
+  </div>
+
+  <!-- ✅ Load TypeScript UMD build (exposes global `ts`) -->
+  <script src="https://unpkg.com/typescript@5.4.5/lib/typescript.js"></script>
+
+  <!-- ✅ Load Monaco Editor -->
+  <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script>
+    let editor;
+
+    require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editorContainer'), {
+        value: `function process(input: string): string {
+  return input.toUpperCase();
+}`,
+        language: 'typescript',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false }
+      });
+    });
+
+    const snippets = [
+      {
+        "name": "Filter SQL Logs",
+        "snippet": `
+function process(input: string): string {
+  return input.split("\\n")
+    .map(line => line.match(/.*(\\d+ms).* from (\\w+) .*/))
+    .map(x => x?.[1] + ", " + x?.[2])
+    .join("\\n");
+}`
+      }
+    ];
+
+    const snippetSelector = document.getElementById('snippetSelector');
+
+    snippets.forEach((item, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = item.name;
+      snippetSelector.appendChild(option);
+    });
+
+    snippetSelector.addEventListener('change', () => {
+      const selectedIndex = snippetSelector.value;
+      if (selectedIndex !== '') {
+        const selectedSnippet = snippets[selectedIndex];
+        editor.setValue(selectedSnippet.snippet.trim());
+      }
+    });
+
+    document.getElementById('runButton').addEventListener('click', () => {
+      if (typeof ts === 'undefined') {
+        alert('TypeScript compiler not yet loaded.');
+        return;
+      }
+
+      const input = document.getElementById('inputText').value;
+      const tsCode = editor.getValue();
+      const errorBox = document.getElementById('errorBox');
+      const errorMessage = document.getElementById('errorMessage');
+      const output = document.getElementById('outputText');
+
+      errorBox.style.display = 'none';
+      errorMessage.textContent = '';
+      output.value = '';
+
+      try {
+        const jsCode = ts.transpile(tsCode);
+        const func = new Function(jsCode + '\nreturn process;')();
+        const result = func(input);
+        output.value = String(result);
+      } catch (e) {
+        errorBox.style.display = 'block';
+        errorMessage.textContent = e.message;
+      }
+    });
+  </script>
+</body>
+</html>
