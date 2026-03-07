@@ -197,12 +197,13 @@
 
     require(['vs/editor/editor.main'], function () {
       editor = monaco.editor.create(document.getElementById('editorContainer'), {
-        value: defaultCode,
+        value: localStorage.getItem('it.code') || defaultCode,
         language: 'typescript',
         theme: 'vs-dark',
         automaticLayout: true,
         minimap: { enabled: false }
       });
+      editor.onDidChangeModelContent(() => localStorage.setItem('it.code', editor.getValue()));
     });
 
     // --- Image loading ---
@@ -244,8 +245,25 @@
         inputPreview.src = inputCanvas.toDataURL();
         inputPreview.style.display = 'block';
         dropPlaceholder.style.display = 'none';
+        try { localStorage.setItem('it.image', inputPreview.src); } catch (e) {}
       };
       img.src = url;
+    }
+
+    // Restore saved image
+    const savedImage = localStorage.getItem('it.image');
+    if (savedImage) {
+      const img = new Image();
+      img.onload = () => {
+        inputCanvas = document.createElement('canvas');
+        inputCanvas.width = img.naturalWidth;
+        inputCanvas.height = img.naturalHeight;
+        inputCanvas.getContext('2d').drawImage(img, 0, 0);
+        inputPreview.src = savedImage;
+        inputPreview.style.display = 'block';
+        dropPlaceholder.style.display = 'none';
+      };
+      img.src = savedImage;
     }
 
     // --- Run ---

@@ -112,11 +112,14 @@
   <script>
     let editor;
 
+    document.getElementById('inputText').value = localStorage.getItem('tt.input') || '';
+    document.getElementById('inputText').addEventListener('input', e => localStorage.setItem('tt.input', e.target.value));
+
     require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
 
     require(['vs/editor/editor.main'], function () {
       editor = monaco.editor.create(document.getElementById('editorContainer'), {
-        value: `function process(input: string): string {
+        value: localStorage.getItem('tt.code') || `function process(input: string): string {
   return input.toUpperCase();
 }`,
         language: 'typescript',
@@ -124,6 +127,7 @@
         automaticLayout: true,
         minimap: { enabled: false }
       });
+      editor.onDidChangeModelContent(() => localStorage.setItem('tt.code', editor.getValue()));
     });
 
     const snippets = [
