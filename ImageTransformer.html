@@ -30,10 +30,13 @@
     }
 
     #editorContainer {
-      flex: 1;
-      min-height: 180px;
+      height: 300px;
+      min-height: 80px;
+      flex-shrink: 0;
       border: 1px solid #444;
       margin-bottom: 10px;
+      resize: vertical;
+      overflow: hidden;
     }
 
     button {
@@ -68,8 +71,8 @@
     .images-row {
       display: flex;
       gap: 10px;
-      height: 280px;
-      flex-shrink: 0;
+      flex: 1;
+      min-height: 300px;
     }
 
     .image-panel {
@@ -210,6 +213,13 @@
   ctx.putImageData(imageData, 0, 0);
   return output;
 }`;
+
+    const editorContainer = document.getElementById('editorContainer');
+    const savedEditorHeight = localStorage.getItem('it.editorHeight');
+    if (savedEditorHeight) editorContainer.style.height = savedEditorHeight + 'px';
+    new ResizeObserver(() => {
+      localStorage.setItem('it.editorHeight', editorContainer.offsetHeight);
+    }).observe(editorContainer);
 
     require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
 
