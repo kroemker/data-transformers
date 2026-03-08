@@ -146,7 +146,12 @@
 
     <div id="editorContainer"></div>
 
-    <button id="runButton">Run Code</button>
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+      <button id="runButton" style="margin-bottom: 0;">Run Code</button>
+      <label style="margin: 0; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
+        <input type="checkbox" id="autoRun"> Auto-run
+      </label>
+    </div>
 
     <div id="errorBox" class="error-box">
       <span class="error-symbol">❌</span>
@@ -176,6 +181,19 @@
   <script>
     let editor;
     let inputCanvas = null;
+    let autoRunTimer = null;
+    const autoRunCheckbox = document.getElementById('autoRun');
+    autoRunCheckbox.checked = localStorage.getItem('it.autorun') === 'true';
+    autoRunCheckbox.addEventListener('change', () => {
+      localStorage.setItem('it.autorun', autoRunCheckbox.checked);
+      if (autoRunCheckbox.checked && inputCanvas) runCode();
+    });
+
+    function scheduleAutoRun() {
+      if (!autoRunCheckbox.checked) return;
+      clearTimeout(autoRunTimer);
+      autoRunTimer = setTimeout(runCode, 400);
+    }
 
     const defaultCode = `function process(input: HTMLCanvasElement): HTMLCanvasElement {
   const output = document.createElement('canvas');
@@ -203,7 +221,10 @@
         automaticLayout: true,
         minimap: { enabled: false }
       });
-      editor.onDidChangeModelContent(() => localStorage.setItem('it.code', editor.getValue()));
+      editor.onDidChangeModelContent(() => {
+        localStorage.setItem('it.code', editor.getValue());
+        scheduleAutoRun();
+      });
     });
 
     // --- Image loading ---
@@ -246,6 +267,7 @@
         inputPreview.style.display = 'block';
         dropPlaceholder.style.display = 'none';
         try { localStorage.setItem('it.image', inputPreview.src); } catch (e) {}
+        scheduleAutoRun();
       };
       img.src = url;
     }
@@ -262,6 +284,7 @@
         inputPreview.src = savedImage;
         inputPreview.style.display = 'block';
         dropPlaceholder.style.display = 'none';
+        scheduleAutoRun();
       };
       img.src = savedImage;
     }
@@ -306,6 +329,11 @@
         alert('TypeScript compiler not yet loaded.');
         return;
       }
+      runCode();
+    });
+
+    function runCode() {
+      if (!editor || !inputCanvas || typeof ts === 'undefined') return;
 
       const tsCode = editor.getValue();
       const errorBox = document.getElementById('errorBox');
@@ -322,7 +350,7 @@
         errorBox.style.display = 'block';
         errorMessage.textContent = e.message;
       }
-    });
+    }
 
     // --- Snippets ---
 

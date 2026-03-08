@@ -93,7 +93,12 @@
     </div>
     <div id="editorContainer"></div>
 
-    <button id="runButton">Run Code</button>
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+      <button id="runButton" style="margin-bottom: 0;">Run Code</button>
+      <label style="margin: 0; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
+        <input type="checkbox" id="autoRun"> Auto-run
+      </label>
+    </div>
 
     <div id="errorBox" class="error-box">
       <span class="error-symbol">❌</span>
@@ -111,9 +116,25 @@
   <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
   <script>
     let editor;
+    let autoRunTimer = null;
+    const autoRunCheckbox = document.getElementById('autoRun');
+    autoRunCheckbox.checked = localStorage.getItem('tt.autorun') === 'true';
+    autoRunCheckbox.addEventListener('change', () => {
+      localStorage.setItem('tt.autorun', autoRunCheckbox.checked);
+      if (autoRunCheckbox.checked) runCode();
+    });
+
+    function scheduleAutoRun() {
+      if (!autoRunCheckbox.checked) return;
+      clearTimeout(autoRunTimer);
+      autoRunTimer = setTimeout(runCode, 400);
+    }
 
     document.getElementById('inputText').value = localStorage.getItem('tt.input') || '';
-    document.getElementById('inputText').addEventListener('input', e => localStorage.setItem('tt.input', e.target.value));
+    document.getElementById('inputText').addEventListener('input', e => {
+      localStorage.setItem('tt.input', e.target.value);
+      scheduleAutoRun();
+    });
 
     require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
 
@@ -127,7 +148,10 @@
         automaticLayout: true,
         minimap: { enabled: false }
       });
-      editor.onDidChangeModelContent(() => localStorage.setItem('tt.code', editor.getValue()));
+      editor.onDidChangeModelContent(() => {
+        localStorage.setItem('tt.code', editor.getValue());
+        scheduleAutoRun();
+      });
     });
 
     const snippets = [
@@ -165,6 +189,11 @@ function process(input: string): string {
         alert('TypeScript compiler not yet loaded.');
         return;
       }
+      runCode();
+    });
+
+    function runCode() {
+      if (!editor || typeof ts === 'undefined') return;
 
       const input = document.getElementById('inputText').value;
       const tsCode = editor.getValue();
@@ -185,7 +214,7 @@ function process(input: string): string {
         errorBox.style.display = 'block';
         errorMessage.textContent = e.message;
       }
-    });
+    }
   </script>
 </body>
 </html>
