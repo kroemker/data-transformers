@@ -300,7 +300,7 @@
         throw new Error('process() must return an HTMLCanvasElement or HTMLCanvasElement[]');
       }
 
-      outputBox.innerHTML = '';
+      outputBox.querySelectorAll('img').forEach(img => img.remove());
       outputPlaceholder.style.display = 'none';
 
       const cols = Math.ceil(Math.sqrt(canvases.length));
