@@ -4,12 +4,40 @@
   <meta charset="UTF-8">
   <title>TS Executor with Monaco (Dark Mode)</title>
   <style>
+    :root {
+      --bg: #1e1e1e;
+      --fg: #d4d4d4;
+      --label-fg: #cfcfcf;
+      --panel-bg: #2d2d2d;
+      --border: #444;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --error-fg: #ff5555;
+      --error-bg: #2e1e1e;
+      --error-border: #ff5555;
+    }
+
+    html[data-theme="light"] {
+      --bg: #ffffff;
+      --fg: #1e1e1e;
+      --label-fg: #333333;
+      --panel-bg: #f5f5f5;
+      --border: #ccc;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --error-fg: #cc0000;
+      --error-bg: #fff0f0;
+      --error-border: #cc0000;
+    }
+
     html, body {
       height: 100%;
       margin: 0;
       font-family: Arial, sans-serif;
-      background-color: #1e1e1e;
-      color: #d4d4d4;
+      background-color: var(--bg);
+      color: var(--fg);
       display: flex;
       flex-direction: column;
     }
@@ -25,7 +53,7 @@
     label {
       margin: 10px 0 5px;
       font-weight: bold;
-      color: #cfcfcf;
+      color: var(--label-fg);
     }
 
     textarea {
@@ -37,15 +65,15 @@
       padding: 8px;
       box-sizing: border-box;
       margin-bottom: 10px;
-      background-color: #2d2d2d;
-      color: #d4d4d4;
-      border: 1px solid #444;
+      background-color: var(--panel-bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
       text-wrap-mode: nowrap;
     }
 
     #editorContainer {
       flex: 1;
-      border: 1px solid #444;
+      border: 1px solid var(--border);
       margin-bottom: 10px;
     }
 
@@ -54,22 +82,22 @@
       font-size: 16px;
       margin-bottom: 10px;
       align-self: flex-start;
-      background-color: #0e639c;
-      color: white;
+      background-color: var(--btn-bg);
+      color: var(--btn-fg);
       border: none;
       cursor: pointer;
     }
 
     button:hover {
-      background-color: #1177bb;
+      background-color: var(--btn-bg-hover);
     }
 
     .error-box {
-      color: #ff5555;
+      color: var(--error-fg);
       font-weight: bold;
-      border: 1px solid #ff5555;
+      border: 1px solid var(--error-border);
       padding: 10px;
-      background-color: #2e1e1e;
+      background-color: var(--error-bg);
       display: none;
       margin-bottom: 10px;
     }
@@ -77,12 +105,29 @@
     .error-symbol {
       margin-right: 10px;
     }
+
+    .theme-toggle {
+      margin: 0;
+    }
+
+    .input-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .input-header label {
+      margin: 0;
+    }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <label for="inputText">Input Text:</label>
+    <div class="input-header">
+      <label for="inputText">Input Text:</label>
+      <button id="themeToggle" class="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode"></button>
+    </div>
     <textarea id="inputText" placeholder="Enter input text here..."></textarea>
 
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -115,6 +160,23 @@
   <!-- ✅ Load Monaco Editor -->
   <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
   <script>
+    const themeToggle = document.getElementById('themeToggle');
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.textContent = theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+      themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+      if (typeof monaco !== 'undefined') {
+        monaco.editor.setTheme(theme === 'light' ? 'vs' : 'vs-dark');
+      }
+    }
+    let currentTheme = localStorage.getItem('ui.theme') || 'dark';
+    applyTheme(currentTheme);
+    themeToggle.addEventListener('click', () => {
+      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('ui.theme', currentTheme);
+      applyTheme(currentTheme);
+    });
+
     let editor;
     let autoRunTimer = null;
     const autoRunCheckbox = document.getElementById('autoRun');
@@ -144,7 +206,7 @@
   return input.toUpperCase();
 }`,
         language: 'typescript',
-        theme: 'vs-dark',
+        theme: currentTheme === 'light' ? 'vs' : 'vs-dark',
         automaticLayout: true,
         minimap: { enabled: false }
       });
