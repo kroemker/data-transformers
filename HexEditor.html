@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hex Editor (Dark Mode)</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --fg: #d4d4d4;
+      --label-fg: #cfcfcf;
+      --panel-bg: #2d2d2d;
+      --border: #444;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --btn-disabled-bg: #3c3c3c;
+      --btn-disabled-fg: #777;
+      --error-fg: #ff5555;
+      --error-bg: #2e1e1e;
+      --error-border: #ff5555;
+      --select-bg: #3c3c3c;
+      --select-border: #555;
+      --dropzone-border: #555;
+      --dropzone-dragover-bg: #1e2a3a;
+      --placeholder-fg: #777;
+      --addr-fg: #7fb0e0;
+      --hl-bg: #b58900;
+      --hl-fg: #1e1e1e;
+      --hl-current-bg: #cc6600;
+      --row-alt-bg: #262626;
+    }
+
+    html[data-theme="light"] {
+      --bg: #ffffff;
+      --fg: #1e1e1e;
+      --label-fg: #333333;
+      --panel-bg: #f5f5f5;
+      --border: #ccc;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --btn-disabled-bg: #e0e0e0;
+      --btn-disabled-fg: #999;
+      --error-fg: #cc0000;
+      --error-bg: #fff0f0;
+      --error-border: #cc0000;
+      --select-bg: #ffffff;
+      --select-border: #ccc;
+      --dropzone-border: #bbb;
+      --dropzone-dragover-bg: #e8f0fa;
+      --placeholder-fg: #999;
+      --addr-fg: #0e639c;
+      --hl-bg: #ffe38f;
+      --hl-fg: #1e1e1e;
+      --hl-current-bg: #ffb347;
+      --row-alt-bg: #eef0f2;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+      min-height: 0;
+    }
+
+    label {
+      margin: 10px 0 5px;
+      font-weight: bold;
+      color: var(--label-fg);
+    }
+
+    .input-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .input-header label {
+      margin: 0;
+    }
+
+    .theme-toggle {
+      margin: 0;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: var(--btn-bg);
+      color: var(--btn-fg);
+      border: none;
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover {
+      background-color: var(--btn-bg-hover);
+    }
+
+    #dropZone {
+      cursor: pointer;
+      border: 2px dashed var(--dropzone-border);
+      border-radius: 4px;
+      padding: 14px;
+      text-align: center;
+      color: var(--placeholder-fg);
+      font-size: 13px;
+      margin-bottom: 10px;
+      transition: background-color 0.1s, border-color 0.1s;
+    }
+
+    #dropZone.dragover {
+      border-color: var(--btn-bg);
+      background-color: var(--dropzone-dragover-bg);
+      color: var(--fg);
+    }
+
+    #fileInfo {
+      font-size: 13px;
+      color: var(--label-fg);
+    }
+
+    #fileInfo .filename {
+      font-weight: bold;
+      color: var(--fg);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .toolbar .group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .toolbar label {
+      margin: 0;
+      font-weight: normal;
+      color: var(--label-fg);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    input[type="text"], select {
+      background-color: var(--select-bg);
+      color: var(--fg);
+      border: 1px solid var(--select-border);
+      padding: 6px 8px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+
+    input[type="text"] {
+      font-family: monospace;
+    }
+
+    #searchInput {
+      width: 220px;
+    }
+
+    #gotoInput {
+      width: 120px;
+    }
+
+    button {
+      padding: 6px 12px;
+      font-size: 13px;
+      background-color: var(--btn-bg);
+      color: var(--btn-fg);
+      border: none;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: var(--btn-bg-hover);
+    }
+
+    button:disabled {
+      background-color: var(--btn-disabled-bg);
+      color: var(--btn-disabled-fg);
+      cursor: default;
+    }
+
+    #matchLabel {
+      font-size: 13px;
+      color: var(--label-fg);
+      min-width: 90px;
+    }
+
+    .error-box {
+      color: var(--error-fg);
+      font-weight: bold;
+      border: 1px solid var(--error-border);
+      padding: 10px;
+      background-color: var(--error-bg);
+      display: none;
+      margin-bottom: 10px;
+    }
+
+    .error-symbol {
+      margin-right: 10px;
+    }
+
+    #hexViewport {
+      flex: 1;
+      min-height: 200px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background-color: var(--panel-bg);
+      position: relative;
+      font-family: 'Consolas', 'Menlo', monospace;
+      font-size: 13px;
+    }
+
+    #hexHeader {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      color: var(--label-fg);
+      padding: 4px 10px;
+      white-space: pre;
+      font-family: 'Consolas', 'Menlo', monospace;
+      font-size: 13px;
+    }
+
+    #hexSpacer {
+      position: relative;
+    }
+
+    #hexContent {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 0 10px;
+    }
+
+    .hex-row {
+      height: 20px;
+      line-height: 20px;
+      white-space: pre;
+    }
+
+    .hex-row:nth-child(even) {
+      background-color: var(--row-alt-bg);
+    }
+
+    .addr {
+      color: var(--addr-fg);
+    }
+
+    .sep {
+      display: inline-block;
+      width: 8px;
+    }
+
+    .hl {
+      background-color: var(--hl-bg);
+      color: var(--hl-fg);
+      border-radius: 2px;
+    }
+
+    .hl-current {
+      background-color: var(--hl-current-bg);
+      color: var(--hl-fg);
+      border-radius: 2px;
+    }
+
+    #dropPlaceholder {
+      pointer-events: none;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="input-header">
+      <label>Hex Editor</label>
+      <button id="themeToggle" class="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode"></button>
+    </div>
+
+    <div id="dropZone">
+      <input type="file" id="fileInput" style="display:none">
+      <div id="dropPlaceholder">Drop a file here or click to browse</div>
+      <div id="fileInfo" class="hidden">
+        <span class="filename" id="fileName"></span> &mdash; <span id="fileSize"></span> bytes
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="group">
+        <label for="searchInput">Search:</label>
+        <input type="text" id="searchInput" placeholder="hex bytes or ascii text" disabled>
+        <select id="searchMode" disabled>
+          <option value="text">Text</option>
+          <option value="hex">Hex</option>
+        </select>
+        <button id="searchButton" disabled>Find</button>
+        <button id="prevMatchButton" disabled>&lsaquo; Prev</button>
+        <button id="nextMatchButton" disabled>Next &rsaquo;</button>
+        <span id="matchLabel"></span>
+      </div>
+
+      <div class="group">
+        <label for="gotoInput">Go to address:</label>
+        <input type="text" id="gotoInput" placeholder="e.g. 1A2F or 0x1A2F" disabled>
+        <button id="gotoButton" disabled>Go</button>
+      </div>
+    </div>
+
+    <div id="errorBox" class="error-box">
+      <span class="error-symbol">&#10060;</span>
+      <span id="errorMessage"></span>
+    </div>
+
+    <div id="hexHeader"></div>
+    <div id="hexViewport">
+      <div id="hexSpacer">
+        <div id="hexContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const themeToggle = document.getElementById('themeToggle');
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.textContent = theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+      themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+    }
+    let currentTheme = localStorage.getItem('ui.theme') || 'dark';
+    applyTheme(currentTheme);
+    themeToggle.addEventListener('click', () => {
+      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('ui.theme', currentTheme);
+      applyTheme(currentTheme);
+    });
+
+    // ----- Constants -----
+    const BYTES_PER_ROW = 16;
+    const ROW_HEIGHT = 20;
+    const BUFFER_ROWS = 8;
+    const MAX_MATCHES = 5000;
+
+    // ----- State -----
+    let fileBytes = null;
+    let fileName = '';
+    let matches = [];
+    let matchLength = 0;
+    let currentMatchIndex = -1;
+    let highlightStart = -1;
+    let highlightLength = 0;
+
+    // ----- Elements -----
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const dropPlaceholder = document.getElementById('dropPlaceholder');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileNameEl = document.getElementById('fileName');
+    const fileSizeEl = document.getElementById('fileSize');
+
+    const searchInput = document.getElementById('searchInput');
+    const searchMode = document.getElementById('searchMode');
+    const searchButton = document.getElementById('searchButton');
+    const prevMatchButton = document.getElementById('prevMatchButton');
+    const nextMatchButton = document.getElementById('nextMatchButton');
+    const matchLabel = document.getElementById('matchLabel');
+
+    const gotoInput = document.getElementById('gotoInput');
+    const gotoButton = document.getElementById('gotoButton');
+
+    const errorBox = document.getElementById('errorBox');
+    const errorMessage = document.getElementById('errorMessage');
+
+    const hexHeader = document.getElementById('hexHeader');
+    const hexViewport = document.getElementById('hexViewport');
+    const hexSpacer = document.getElementById('hexSpacer');
+    const hexContent = document.getElementById('hexContent');
+
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+
+    function clearError() {
+      errorBox.style.display = 'none';
+      errorMessage.textContent = '';
+    }
+
+    function formatBytes(n) {
+      return n.toLocaleString();
+    }
+
+    function addrDigits() {
+      if (!fileBytes) return 8;
+      return Math.max(8, fileBytes.length.toString(16).length);
+    }
+
+    function buildHeader() {
+      const pad = ' '.repeat(addrDigits());
+      let cols = '';
+      for (let i = 0; i < BYTES_PER_ROW; i++) {
+        cols += i.toString(16).toUpperCase().padStart(2, '0') + ' ';
+        if (i === 7) cols += ' ';
+      }
+      hexHeader.textContent = pad + '  ' + cols + '  ASCII';
+    }
+
+    // ----- File loading -----
+    function loadFile(file) {
+      if (!file) return;
+      clearError();
+      const reader = new FileReader();
+      reader.onload = () => {
+        fileBytes = new Uint8Array(reader.result);
+        fileName = file.name;
+        dropPlaceholder.classList.add('hidden');
+        fileInfo.classList.remove('hidden');
+        fileNameEl.textContent = fileName;
+        fileSizeEl.textContent = formatBytes(fileBytes.length);
+
+        searchInput.disabled = false;
+        searchMode.disabled = false;
+        searchButton.disabled = false;
+        gotoInput.disabled = false;
+        gotoButton.disabled = false;
+
+        matches = [];
+        currentMatchIndex = -1;
+        highlightStart = -1;
+        highlightLength = 0;
+        updateMatchLabel();
+
+        buildHeader();
+        hexViewport.scrollTop = 0;
+        render();
+      };
+      reader.onerror = () => {
+        showError('Failed to read file: ' + (reader.error ? reader.error.message : 'unknown error'));
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files[0]) {
+        loadFile(fileInput.files[0]);
+      }
+    });
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) loadFile(file);
+    });
+
+    // Prevent the browser from navigating away if a file is dropped outside the dropzone.
+    ['dragover', 'drop'].forEach(evt => {
+      document.addEventListener(evt, e => {
+        if (e.target !== dropZone && !dropZone.contains(e.target)) {
+          e.preventDefault();
+        }
+      });
+    });
+
+    // ----- Rendering (virtualized) -----
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function isHighlighted(offset) {
+      if (highlightStart < 0) return false;
+      return offset >= highlightStart && offset < highlightStart + highlightLength;
+    }
+
+    function renderRow(rowIndex) {
+      const start = rowIndex * BYTES_PER_ROW;
+      const end = Math.min(start + BYTES_PER_ROW, fileBytes.length);
+      const addr = start.toString(16).toUpperCase().padStart(addrDigits(), '0');
+
+      let hexPart = '';
+      let asciiPart = '';
+
+      for (let i = start; i < start + BYTES_PER_ROW; i++) {
+        if (i === start + 8) hexPart += ' ';
+        if (i < end) {
+          const b = fileBytes[i];
+          const hex = b.toString(16).toUpperCase().padStart(2, '0');
+          const ch = (b >= 32 && b <= 126) ? escapeHtml(String.fromCharCode(b)) : '.';
+          const cls = isHighlighted(i)
+            ? (i === highlightStart ? 'hl-current' : 'hl')
+            : '';
+          if (cls) {
+            hexPart += `<span class="${cls}">${hex}</span> `;
+            asciiPart += `<span class="${cls}">${ch}</span>`;
+          } else {
+            hexPart += hex + ' ';
+            asciiPart += ch;
+          }
+        } else {
+          hexPart += '   ';
+        }
+      }
+
+      return `<div class="hex-row"><span class="addr">${addr}</span>  ${hexPart} ${asciiPart}</div>`;
+    }
+
+    function render() {
+      if (!fileBytes) {
+        hexContent.innerHTML = '';
+        hexSpacer.style.height = '0px';
+        return;
+      }
+      const totalRows = Math.max(1, Math.ceil(fileBytes.length / BYTES_PER_ROW));
+      hexSpacer.style.height = (totalRows * ROW_HEIGHT) + 'px';
+
+      const scrollTop = hexViewport.scrollTop;
+      const startRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
+      const visibleCount = Math.ceil(hexViewport.clientHeight / ROW_HEIGHT) + BUFFER_ROWS * 2;
+      const endRow = Math.min(totalRows, startRow + visibleCount);
+
+      let html = '';
+      for (let r = startRow; r < endRow; r++) {
+        html += renderRow(r);
+      }
+      hexContent.style.top = (startRow * ROW_HEIGHT) + 'px';
+      hexContent.innerHTML = html;
+    }
+
+    let renderScheduled = false;
+    hexViewport.addEventListener('scroll', () => {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
+      });
+    });
+
+    window.addEventListener('resize', render);
+
+    function jumpToOffset(offset, length) {
+      highlightStart = offset;
+      highlightLength = length;
+      const row = Math.floor(offset / BYTES_PER_ROW);
+      const targetTop = Math.max(0, row * ROW_HEIGHT - hexViewport.clientHeight / 2);
+      hexViewport.scrollTop = targetTop;
+      render();
+    }
+
+    // ----- Search -----
+    function parseHexPattern(query) {
+      const stripped = query.replace(/\s+/g, '');
+      if (stripped.length === 0) return null;
+      if (!/^[0-9a-fA-F]+$/.test(stripped)) {
+        throw new Error('Hex search must contain only hex digits (0-9, A-F) and whitespace.');
+      }
+      if (stripped.length % 2 !== 0) {
+        throw new Error('Hex search string must have an even number of digits.');
+      }
+      const bytes = new Uint8Array(stripped.length / 2);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(stripped.substr(i * 2, 2), 16);
+      }
+      return bytes;
+    }
+
+    function findAllMatches(pattern) {
+      const result = [];
+      if (!pattern || pattern.length === 0 || !fileBytes) return result;
+      const limit = fileBytes.length - pattern.length;
+      outer:
+      for (let i = 0; i <= limit; i++) {
+        for (let j = 0; j < pattern.length; j++) {
+          if (fileBytes[i + j] !== pattern[j]) continue outer;
+        }
+        result.push(i);
+        if (result.length >= MAX_MATCHES) break;
+      }
+      return result;
+    }
+
+    function updateMatchLabel() {
+      if (!fileBytes) {
+        matchLabel.textContent = '';
+      } else if (matches.length === 0) {
+        matchLabel.textContent = currentMatchIndex === -2 ? '' : 'No matches';
+      } else {
+        const capped = matches.length >= MAX_MATCHES ? '+' : '';
+        matchLabel.textContent = `Match ${currentMatchIndex + 1} of ${matches.length}${capped}`;
+      }
+      prevMatchButton.disabled = matches.length === 0;
+      nextMatchButton.disabled = matches.length === 0;
+    }
+
+    function runSearch() {
+      if (!fileBytes) return;
+      clearError();
+      const query = searchInput.value;
+      if (!query) {
+        matches = [];
+        currentMatchIndex = -1;
+        highlightStart = -1;
+        highlightLength = 0;
+        updateMatchLabel();
+        render();
+        return;
+      }
+
+      let pattern;
+      try {
+        if (searchMode.value === 'hex') {
+          pattern = parseHexPattern(query);
+          if (!pattern) return;
+        } else {
+          pattern = new TextEncoder().encode(query);
+        }
+      } catch (e) {
+        showError(e.message);
+        return;
+      }
+
+      matches = findAllMatches(pattern);
+      matchLength = pattern.length;
+      currentMatchIndex = matches.length ? 0 : -1;
+      updateMatchLabel();
+
+      if (currentMatchIndex >= 0) {
+        jumpToOffset(matches[currentMatchIndex], matchLength);
+      } else {
+        highlightStart = -1;
+        highlightLength = 0;
+        render();
+      }
+    }
+
+    function gotoMatch(delta) {
+      if (matches.length === 0) return;
+      currentMatchIndex = (currentMatchIndex + delta + matches.length) % matches.length;
+      updateMatchLabel();
+      jumpToOffset(matches[currentMatchIndex], matchLength);
+    }
+
+    searchButton.addEventListener('click', runSearch);
+    searchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') runSearch();
+    });
+    prevMatchButton.addEventListener('click', () => gotoMatch(-1));
+    nextMatchButton.addEventListener('click', () => gotoMatch(1));
+
+    // ----- Go to address -----
+    function parseAddress(str) {
+      let s = str.trim();
+      if (/^0x/i.test(s)) s = s.slice(2);
+      if (s.length === 0 || !/^[0-9a-fA-F]+$/.test(s)) return null;
+      return parseInt(s, 16);
+    }
+
+    function runGoto() {
+      if (!fileBytes) return;
+      clearError();
+      const addr = parseAddress(gotoInput.value);
+      if (addr === null) {
+        showError('Enter a valid hex address, e.g. "1A2F" or "0x1A2F".');
+        return;
+      }
+      if (addr < 0 || addr >= fileBytes.length) {
+        showError(`Address out of range. File has ${formatBytes(fileBytes.length)} bytes (0 to ${(fileBytes.length - 1).toString(16).toUpperCase()} hex).`);
+        return;
+      }
+      jumpToOffset(addr, 1);
+    }
+
+    gotoButton.addEventListener('click', runGoto);
+    gotoInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') runGoto();
+    });
+
+    buildHeader();
+    render();
+  </script>
+</body>
+</html>
