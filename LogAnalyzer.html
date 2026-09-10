@@ -645,6 +645,7 @@
     }
 
     function syncPanelHeights() {
+      redrawAllCharts(); // chart viewBoxes are sized to their container's width — resize needs a redraw
       if (window.innerWidth <= 900) {
         inputText.style.height = '';
         tableScroll.style.height = '';
@@ -1162,7 +1163,7 @@
     // ---------- Visualizations ----------
     let visualizations = [];
     let nextVizId = 1;
-    const CHART_W = 800, CHART_H = 220;
+    const CHART_H = 180; // matches .chart-svg-wrap's CSS height exactly, so viewBox units == CSS px
     const CHART_PAD = { left: 46, right: 12, top: 12, bottom: 22 };
     const chartTooltip = document.getElementById('chartTooltip');
 
@@ -1205,7 +1206,7 @@
       const state = svg._chartState;
       if (!state || !state.points.length) return;
       const rect = svg.getBoundingClientRect();
-      const localX = (e.clientX - rect.left) * (CHART_W / rect.width);
+      const localX = (e.clientX - rect.left) * (state.width / rect.width);
       let nearest = state.points[0], bestDist = Infinity;
       for (const p of state.points) {
         const d = Math.abs(state.px(p.x) - localX);
@@ -1229,10 +1230,18 @@
 
     function redrawChart(viz, card) {
       const svg = card.querySelector('.chart-svg');
+      const wrap = card.querySelector('.chart-svg-wrap');
       const emptyMsg = card.querySelector('.chart-empty');
       svg.innerHTML = '';
       svg.style.display = 'block';
       emptyMsg.style.display = 'none';
+
+      // Size the viewBox to the container's actual rendered width so viewBox
+      // units equal CSS px — otherwise preserveAspectRatio="none" stretches
+      // everything (text included) to fit a much wider box than the fixed
+      // logical size, which is what made axis labels look smeared sideways.
+      const w = Math.max(300, wrap.clientWidth || 300);
+      svg.setAttribute('viewBox', '0 0 ' + w + ' ' + CHART_H);
 
       const xIsDate = isDateColumn(displayRows, viz.xCol);
       const yIsDate = isDateColumn(displayRows, viz.yCol);
@@ -1263,14 +1272,14 @@
       if (viz.type === 'bar') yMin = Math.min(0, yMin);
       if (yMin === yMax) { yMin -= 1; yMax += 1; }
 
-      const innerW = CHART_W - CHART_PAD.left - CHART_PAD.right;
+      const innerW = w - CHART_PAD.left - CHART_PAD.right;
       const innerH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
       const px = (x) => CHART_PAD.left + ((x - xMin) / (xMax - xMin)) * innerW;
       const py = (y) => CHART_PAD.top + innerH - ((y - yMin) / (yMax - yMin)) * innerH;
 
       if (yMin < 0 && yMax > 0) {
         svg.appendChild(svgEl('line', {
-          x1: CHART_PAD.left, x2: CHART_W - CHART_PAD.right, y1: py(0), y2: py(0), class: 'chart-zeroline'
+          x1: CHART_PAD.left, x2: w - CHART_PAD.right, y1: py(0), y2: py(0), class: 'chart-zeroline'
         }));
       }
 
@@ -1300,14 +1309,14 @@
       yMinLabel.textContent = formatAxisValue(yMin, yIsDate);
       const xMinLabel = svgEl('text', { x: CHART_PAD.left, y: CHART_H - 6, class: 'chart-axis-label' });
       xMinLabel.textContent = formatAxisValue(xMin, xIsDate);
-      const xMaxLabel = svgEl('text', { x: CHART_W - CHART_PAD.right, y: CHART_H - 6, class: 'chart-axis-label', 'text-anchor': 'end' });
+      const xMaxLabel = svgEl('text', { x: w - CHART_PAD.right, y: CHART_H - 6, class: 'chart-axis-label', 'text-anchor': 'end' });
       xMaxLabel.textContent = formatAxisValue(xMax, xIsDate);
       svg.append(yMaxLabel, yMinLabel, xMinLabel, xMaxLabel);
 
       const hoverDot = svgEl('circle', { r: 4, class: 'chart-hover-dot' });
       svg.appendChild(hoverDot);
 
-      svg._chartState = { points, px, py, viz, hoverDot, xIsDate, yIsDate };
+      svg._chartState = { points, px, py, viz, hoverDot, xIsDate, yIsDate, width: w };
     }
 
     function redrawAllCharts() {
@@ -1370,8 +1379,7 @@
         svgWrap.className = 'chart-svg-wrap';
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'chart-svg');
-        svg.setAttribute('viewBox', '0 0 ' + CHART_W + ' ' + CHART_H);
-        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('preserveAspectRatio', 'none'); // viewBox is set per-redraw to match the rendered width
         svg.addEventListener('mousemove', (e) => onChartHover(e, svg));
         svg.addEventListener('mouseleave', () => hideChartTooltip(svg));
 
