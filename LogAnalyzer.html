@@ -49,12 +49,12 @@
     }
 
     .container {
+      height: 100vh;
+      box-sizing: border-box;
+      padding: 10px;
       display: flex;
       flex-direction: column;
-      padding: 10px;
-      box-sizing: border-box;
       gap: 4px;
-      min-height: 100%;
     }
 
     h1 {
@@ -80,6 +80,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
 
     .section-header label { margin: 0; }
@@ -96,7 +97,7 @@
 
     #inputText {
       width: 100%;
-      height: 420px;
+      min-height: 150px;
       resize: vertical;
       text-wrap-mode: nowrap;
     }
@@ -138,15 +139,17 @@
 
     .theme-toggle { margin: 0; }
 
-    /* ---------- Top grid: input | table ---------- */
+    /* ---------- Top grid: input | table (fills remaining viewport height) ---------- */
     .top-grid {
+      flex: 1 1 auto;
+      min-height: 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      align-items: start;
+      overflow: hidden;
     }
 
-    .panel { display: flex; flex-direction: column; min-width: 0; }
+    .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
     /* ---------- Pipeline row ---------- */
     .pipeline-row {
@@ -154,6 +157,7 @@
       align-items: flex-start;
       gap: 4px;
       margin: 16px 0 4px;
+      flex-shrink: 0;
     }
 
     .pipeline-endpoint {
@@ -200,6 +204,7 @@
     }
     .node-header:hover { border-color: var(--accent); }
     .pipeline-node.expanded > .node-header { border-color: var(--accent); }
+    .pipeline-node.has-error > .node-header { border-color: var(--error-border); }
 
     .node-icon { font-size: 14px; }
     .node-title { font-weight: bold; font-size: 13px; }
@@ -212,6 +217,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .pipeline-node.has-error .node-summary { color: var(--error-fg); }
     .chevron {
       font-size: 11px;
       color: var(--label-fg);
@@ -225,7 +231,7 @@
       top: calc(100% + 4px);
       left: 50%;
       transform: translateX(-50%);
-      min-width: 360px;
+      min-width: 380px;
       max-width: 520px;
       background: var(--panel-bg);
       border: 1px solid var(--border);
@@ -235,13 +241,15 @@
       z-index: 20;
     }
     .pipeline-node.expanded .node-body { display: block; }
-    #splitNode .node-body { left: 0; transform: none; }
+    .pipeline-node.has-error .node-body { border-color: var(--error-border); }
+    #splitNode .node-body { left: 0; transform: none; min-width: 480px; max-width: 720px; }
+    #deriveNode .node-body { min-width: 480px; max-width: 720px; }
     #filterNode .node-body { left: auto; right: 0; transform: none; }
 
     .node-body label:first-child { margin-top: 0; }
 
     #editorContainer {
-      height: 180px;
+      height: 260px;
       border: 1px solid var(--border);
       margin-bottom: 4px;
     }
@@ -272,12 +280,13 @@
       font-family: monospace;
     }
 
-    /* ---------- Timeline (always visible) ---------- */
+    /* ---------- Timeline (always visible, fixed height) ---------- */
     #timelineWrap {
       position: relative;
       border: 1px solid var(--border);
       background: var(--panel-bg);
       margin-bottom: 4px;
+      flex-shrink: 0;
     }
 
     .timeline-bars {
@@ -316,15 +325,17 @@
       font-size: 12px;
       color: var(--label-fg);
       padding: 2px 6px 6px;
+      flex-shrink: 0;
     }
 
     /* ---------- Table ---------- */
     .table-scroll {
       overflow: auto;
       border: 1px solid var(--border);
-      height: 420px;
+      min-height: 150px;
       position: relative;
       background: var(--panel-bg);
+      flex: 1 1 auto;
     }
 
     .table-header {
@@ -358,7 +369,29 @@
       font-size: 12px;
     }
 
-    .header-cell { cursor: pointer; user-select: none; }
+    .header-cell {
+      position: relative;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+    }
+    .header-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .col-resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      z-index: 3;
+    }
+    .col-resizer:hover, .col-resizer.active { background: var(--accent); }
 
     #statsText {
       font-size: 12px;
@@ -366,8 +399,9 @@
     }
 
     @media (max-width: 900px) {
-      .top-grid { grid-template-columns: 1fr; }
-      #inputText { height: 240px; }
+      .container { height: auto; min-height: 100%; }
+      .top-grid { grid-template-columns: 1fr; overflow: visible; }
+      #inputText, .table-scroll { min-height: 240px; }
 
       .pipeline-row { flex-direction: column; align-items: stretch; }
       .arrow { width: 100%; height: 18px; }
@@ -383,7 +417,7 @@
         box-shadow: none;
         margin-top: 4px;
       }
-      #splitNode .node-body, #filterNode .node-body { left: auto; right: auto; }
+      #splitNode .node-body, #deriveNode .node-body, #filterNode .node-body { left: auto; right: auto; min-width: 0; max-width: none; }
     }
   </style>
 </head>
@@ -452,15 +486,7 @@
           <span class="chevron">▸</span>
         </div>
         <div class="node-body">
-          <div class="section-header">
-            <label for="editorContainer">Derived Columns (TypeScript)</label>
-            <div class="row">
-              <button id="runDeriveBtn" style="margin: 0;">Run</button>
-              <label style="margin: 0; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
-                <input type="checkbox" id="autoRunDerive"> Auto-run
-              </label>
-            </div>
-          </div>
+          <label for="editorContainer">Derived Columns (TypeScript, auto-runs as you type)</label>
           <div id="editorContainer"></div>
           <div id="deriveErrorBox" class="error-box"><span id="deriveErrorMsg"></span></div>
         </div>
@@ -547,6 +573,43 @@
       });
     });
 
+    // ---------- Full-height layout: input/table fill remaining space, and the
+    // table mirrors the input textarea's height when the user drag-resizes it ----------
+    const inputText = document.getElementById('inputText');
+    const tableScroll = document.getElementById('tableScroll');
+
+    let syncHeightsTimer = null;
+    function scheduleSyncPanelHeights() {
+      clearTimeout(syncHeightsTimer);
+      syncHeightsTimer = setTimeout(syncPanelHeights, 100);
+    }
+
+    function syncPanelHeights() {
+      if (window.innerWidth <= 900) {
+        inputText.style.height = '';
+        tableScroll.style.height = '';
+        return;
+      }
+      const inputPanel = inputText.closest('.panel');
+      const tablePanel = tableScroll.closest('.panel');
+      const inputHeaderH = inputText.previousElementSibling.offsetHeight;
+      const tableHeaderH = tableScroll.previousElementSibling.offsetHeight;
+      const targetH = Math.max(150, Math.min(
+        inputPanel.clientHeight - inputHeaderH - 8,
+        tablePanel.clientHeight - tableHeaderH - 8
+      ));
+      inputText.style.height = targetH + 'px';
+      tableScroll.style.height = targetH + 'px';
+    }
+    window.addEventListener('resize', scheduleSyncPanelHeights);
+    syncPanelHeights();
+
+    // Native textarea resize handle sets an inline height on drag; mirror that onto the table.
+    new ResizeObserver(() => {
+      if (window.innerWidth <= 900) return;
+      tableScroll.style.height = inputText.offsetHeight + 'px';
+    }).observe(inputText);
+
     // ---------- Regex / preset presets ----------
     const REGEX_PRESETS = [
       { name: 'Generic (timestamp, level, message)', pattern: '^(?<timestamp>\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\s+(?<level>\\w+)\\s+(?<message>.*)$' },
@@ -608,7 +671,7 @@
       }
       safeSetItem('la.preset', val);
       safeSetItem('la.regex', regexInput.value);
-      scheduleRecompute(false);
+      scheduleRecompute();
     });
 
     regexInput.addEventListener('input', () => {
@@ -616,11 +679,10 @@
       presetSelect.value = '__custom__';
       safeSetItem('la.preset', '__custom__');
       safeSetItem('la.regex', regexInput.value);
-      scheduleRecompute(false);
+      scheduleRecompute();
     });
 
     // ---------- Input text + file upload ----------
-    const inputText = document.getElementById('inputText');
     const SAMPLE_LOG = `2024-03-01T12:00:01.123Z INFO Starting server on port 8080
 2024-03-01T12:00:02.456Z INFO Request GET /api/users completed in 42ms
 2024-03-01T12:00:03.789Z ERROR Failed to connect to database
@@ -631,14 +693,14 @@
     inputText.value = localStorage.getItem('la.input') ?? SAMPLE_LOG;
 
     let recomputeTimer = null;
-    function scheduleRecompute(forceDerive) {
+    function scheduleRecompute() {
       clearTimeout(recomputeTimer);
-      recomputeTimer = setTimeout(() => recompute(forceDerive), 350);
+      recomputeTimer = setTimeout(recompute, 350);
     }
 
     inputText.addEventListener('input', () => {
       safeSetItem('la.input', inputText.value);
-      scheduleRecompute(false);
+      scheduleRecompute();
     });
 
     document.getElementById('uploadBtn').addEventListener('click', () => {
@@ -651,7 +713,7 @@
       reader.onload = () => {
         inputText.value = String(reader.result);
         safeSetItem('la.input', inputText.value);
-        recompute(false);
+        recompute();
       };
       reader.readAsText(file);
     });
@@ -720,22 +782,16 @@
       return { rows, columns: colOrder };
     }
 
-    // ---------- Derived columns ----------
+    // ---------- Derived columns (always auto-runs) ----------
     let editor;
-    const autoRunDeriveCheckbox = document.getElementById('autoRunDerive');
-    autoRunDeriveCheckbox.checked = localStorage.getItem('la.autorun') === 'true';
-    autoRunDeriveCheckbox.addEventListener('change', () => {
-      safeSetItem('la.autorun', autoRunDeriveCheckbox.checked);
-      if (autoRunDeriveCheckbox.checked) recompute(true);
-    });
-    document.getElementById('runDeriveBtn').addEventListener('click', () => recompute(true));
 
     require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
     require(['vs/editor/editor.main'], function () {
       editor = monaco.editor.create(document.getElementById('editorContainer'), {
-        value: localStorage.getItem('la.code') || `function process(row: Record<string, string>): Record<string, string> {
-  // Return new columns derived from the parsed ones, e.g.:
-  // return { latencyMs: row.message.match(/(\\d+)ms/)?.[1] ?? '' };
+        value: localStorage.getItem('la.code') || `function process(row: Record<string, string>, allRows: Record<string, string>[], index: number): Record<string, string> {
+  // Access neighboring rows to compute diffs, e.g. time since the previous row:
+  // const prev = allRows[index - 1];
+  // const gapMs = prev ? new Date(row.timestamp).getTime() - new Date(prev.timestamp).getTime() : null;
   return {};
 }`,
         language: 'typescript',
@@ -745,21 +801,21 @@
       });
       editor.onDidChangeModelContent(() => {
         safeSetItem('la.code', editor.getValue());
-        if (autoRunDeriveCheckbox.checked) scheduleRecompute(true);
+        scheduleRecompute();
       });
-      recompute(autoRunDeriveCheckbox.checked);
+      recompute();
     });
 
     function runDerive(rows, tsCode) {
       const jsCode = ts.transpile(tsCode);
       const func = new Function(jsCode + '\nreturn process;')();
-      if (typeof func !== 'function') throw new Error('Code must define a process(row) function.');
+      if (typeof func !== 'function') throw new Error('Code must define a process(row, allRows, index) function.');
       const derivedNames = [];
       const seen = new Set();
       rows.forEach((row, i) => {
         let result;
         try {
-          result = func(Object.assign({}, row));
+          result = func(Object.assign({}, row), rows, i);
         } catch (e) {
           throw new Error('Row ' + (i + 1) + ': ' + e.message);
         }
@@ -919,6 +975,20 @@
     let timelineMeta = null;
     let timeRange = null;
 
+    function positionBrushForTimeRange() {
+      if (!timeRange || !timelineMeta) {
+        timelineBrush.style.display = 'none';
+        return;
+      }
+      const rect = timelineWrap.getBoundingClientRect();
+      const span = timelineMeta.max - timelineMeta.min;
+      const x1 = ((timeRange.start - timelineMeta.min) / span) * rect.width;
+      const x2 = ((timeRange.end - timelineMeta.min) / span) * rect.width;
+      timelineBrush.style.left = Math.max(0, Math.min(x1, x2)) + 'px';
+      timelineBrush.style.width = Math.max(0, Math.abs(x2 - x1)) + 'px';
+      timelineBrush.style.display = 'block';
+    }
+
     function renderTimeline(rows, tsCol) {
       const bars = document.getElementById('timelineBars');
       const emptyMsg = document.getElementById('timelineEmpty');
@@ -931,6 +1001,7 @@
         emptyMsg.style.display = 'block';
         emptyMsg.textContent = 'Select a timestamp column to see the timeline.';
         rangeLabel.textContent = '';
+        positionBrushForTimeRange();
         return;
       }
       const data = buildTimeline(rows, tsCol, bucketCount);
@@ -940,6 +1011,7 @@
         emptyMsg.style.display = 'block';
         emptyMsg.textContent = 'No parseable timestamps found in column "' + tsCol + '".';
         rangeLabel.textContent = '';
+        positionBrushForTimeRange();
         return;
       }
       emptyMsg.style.display = 'none';
@@ -956,6 +1028,7 @@
       bars.innerHTML = html;
       rangeLabel.textContent = new Date(data.min).toLocaleString() + '  →  ' +
         new Date(data.max).toLocaleString() + '  (' + rows.length + ' rows)';
+      positionBrushForTimeRange();
     }
 
     const timelineWrap = document.getElementById('timelineWrap');
@@ -983,8 +1056,10 @@
       const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
       const x1 = Math.min(dragStartX, x), x2 = Math.max(dragStartX, x);
       dragStartX = null;
-      timelineBrush.style.display = 'none';
-      if (!timelineMeta || x2 - x1 < 4) return;
+      if (!timelineMeta || x2 - x1 < 4) {
+        positionBrushForTimeRange();
+        return;
+      }
       const span = timelineMeta.max - timelineMeta.min;
       timeRange = {
         start: timelineMeta.min + (x1 / rect.width) * span,
@@ -1026,29 +1101,62 @@
 
     // ---------- Table rendering ----------
     let displayRows = [];
+    let colWidths = {};
 
     function escapeHtml(s) {
       return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function colWidth(col) {
+      if (colWidths[col] != null) return colWidths[col];
       return col === '#' ? 60 : 200;
+    }
+
+    function startColumnResize(e, col, cell) {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = colWidth(col);
+      function onMove(ev) {
+        const newWidth = Math.max(40, startWidth + (ev.clientX - startX));
+        colWidths[col] = newWidth;
+        cell.style.width = newWidth + 'px';
+        renderTableBody();
+      }
+      function onUp() {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     }
 
     function renderTableHeader() {
       const header = document.getElementById('tableHeader');
-      header.innerHTML = allColumns.map(col => {
+      header.innerHTML = '';
+      allColumns.forEach(col => {
+        const cell = document.createElement('div');
+        cell.className = 'cell header-cell';
+        cell.style.width = colWidth(col) + 'px';
+
+        const label = document.createElement('span');
+        label.className = 'header-label';
         const arrow = sortState.column === col ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
-        return '<div class="cell header-cell" data-col="' + escapeHtml(col) + '" style="width:' + colWidth(col) + 'px">' +
-          escapeHtml(col) + arrow + '</div>';
-      }).join('');
-      header.querySelectorAll('.header-cell').forEach(el => {
-        el.addEventListener('click', () => {
-          const col = el.dataset.col;
+        label.textContent = col + arrow;
+        label.title = col;
+        label.addEventListener('click', () => {
           if (sortState.column === col) sortState.dir *= -1;
-          else { sortState = { column: col, dir: 1 }; }
+          else sortState = { column: col, dir: 1 };
           applyPipelineAndRender();
         });
+        cell.appendChild(label);
+
+        const resizer = document.createElement('div');
+        resizer.className = 'col-resizer';
+        resizer.addEventListener('mousedown', (e) => startColumnResize(e, col, cell));
+        cell.appendChild(resizer);
+
+        header.appendChild(cell);
       });
     }
 
@@ -1109,7 +1217,7 @@
       const code = editor ? editor.getValue().trim() : '';
       if (!code) { el.textContent = 'no code'; return; }
       if (document.getElementById('deriveErrorBox').style.display === 'block') { el.textContent = 'error'; return; }
-      el.textContent = derivedColumns.length ? derivedColumns.length + ' added' : 'not run';
+      el.textContent = derivedColumns.length + ' column' + (derivedColumns.length === 1 ? '' : 's') + ' added';
     }
 
     function updateFilterSummary() {
@@ -1121,15 +1229,20 @@
     let lastParsed = { rows: [], columns: [] };
     let derivedColumns = [];
 
+    const ERROR_NODE_MAP = { parseErrorBox: 'splitNode', deriveErrorBox: 'deriveNode' };
     function showError(boxId, msgId, message) {
       document.getElementById(boxId).style.display = 'block';
       document.getElementById(msgId).textContent = message;
+      const nodeId = ERROR_NODE_MAP[boxId];
+      if (nodeId) document.getElementById(nodeId).classList.add('has-error');
     }
     function hideError(boxId) {
       document.getElementById(boxId).style.display = 'none';
+      const nodeId = ERROR_NODE_MAP[boxId];
+      if (nodeId) document.getElementById(nodeId).classList.remove('has-error');
     }
 
-    function recompute(forceDerive) {
+    function recompute() {
       hideError('parseErrorBox');
       hideError('deriveErrorBox');
 
@@ -1142,7 +1255,7 @@
 
       derivedColumns = [];
       const code = editor ? editor.getValue().trim() : '';
-      if (code && (forceDerive || autoRunDeriveCheckbox.checked) && typeof ts !== 'undefined') {
+      if (code && typeof ts !== 'undefined') {
         try {
           derivedColumns = runDerive(lastParsed.rows, code);
         } catch (e) {
