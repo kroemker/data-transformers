@@ -398,6 +398,59 @@
       color: var(--label-fg);
     }
 
+    /* ---------- Visualizations ---------- */
+    #chartsList {
+      max-height: 440px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+      flex-shrink: 0;
+    }
+
+    .chart-card {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--panel-bg);
+      padding: 8px 10px;
+      flex-shrink: 0;
+    }
+
+    .chart-controls { margin-bottom: 6px; }
+    .chart-controls select { font-size: 12px; padding: 4px 6px; }
+    .chart-controls .chart-vs-label { color: var(--label-fg); font-size: 12px; }
+
+    .chart-svg-wrap { position: relative; width: 100%; height: 180px; }
+    .chart-svg { width: 100%; height: 100%; display: block; }
+    .chart-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .chart-mark { fill: var(--accent); stroke: var(--panel-bg); stroke-width: 1; }
+    .chart-hover-dot { fill: var(--fg); stroke: var(--accent); stroke-width: 2; display: none; }
+    .chart-zeroline { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; }
+    .chart-axis-label { fill: var(--label-fg); font-size: 9px; font-family: monospace; }
+
+    .chart-empty {
+      padding: 8px;
+      font-size: 13px;
+      color: var(--label-fg);
+      display: none;
+    }
+
+    .chart-tooltip {
+      position: fixed;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-family: monospace;
+      color: var(--fg);
+      pointer-events: none;
+      z-index: 50;
+      display: none;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
     @media (max-width: 900px) {
       .container { height: auto; min-height: 100%; }
       .top-grid { grid-template-columns: 1fr; overflow: visible; }
@@ -525,6 +578,13 @@
       <div id="timelineEmpty">Select a timestamp column to see the timeline.</div>
     </div>
     <div id="timelineRangeLabel"></div>
+
+    <div class="section-header" style="margin-top: 14px;">
+      <label style="margin: 0;">Visualizations</label>
+      <button id="addChartBtn" class="secondary icon-btn">+ Add Chart</button>
+    </div>
+    <div id="chartsList"></div>
+    <div id="chartTooltip" class="chart-tooltip"></div>
   </div>
 
   <!-- Load TypeScript UMD build (exposes global `ts`) -->
@@ -1099,6 +1159,234 @@
       }
     }
 
+    // ---------- Visualizations ----------
+    let visualizations = [];
+    let nextVizId = 1;
+    const CHART_W = 800, CHART_H = 220;
+    const CHART_PAD = { left: 46, right: 12, top: 12, bottom: 22 };
+    const chartTooltip = document.getElementById('chartTooltip');
+
+    function pickDefaultYColumn() {
+      const candidates = allColumns.filter(c => c !== '#');
+      const derived = candidates.find(c => derivedColumns.includes(c));
+      if (derived) return derived;
+      for (const c of candidates) {
+        const sample = lastParsed.rows.map(r => r[c]).find(v => v);
+        if (sample !== undefined && parseComparable(sample) !== null) return c;
+      }
+      return candidates[0] || '#';
+    }
+
+    document.getElementById('addChartBtn').addEventListener('click', () => {
+      visualizations.push({ id: nextVizId++, xCol: '#', yCol: pickDefaultYColumn(), type: 'line' });
+      renderCharts();
+    });
+
+    function isDateColumn(rows, col) {
+      for (const row of rows) {
+        const v = row[col];
+        if (!v) continue;
+        return Number.isNaN(Number(v)) && !Number.isNaN(Date.parse(v));
+      }
+      return false;
+    }
+
+    function formatAxisValue(v, isDate) {
+      return isDate ? new Date(v).toLocaleString() : String(Math.round(v * 100) / 100);
+    }
+
+    function svgEl(tag, attrs) {
+      const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    function onChartHover(e, svg) {
+      const state = svg._chartState;
+      if (!state || !state.points.length) return;
+      const rect = svg.getBoundingClientRect();
+      const localX = (e.clientX - rect.left) * (CHART_W / rect.width);
+      let nearest = state.points[0], bestDist = Infinity;
+      for (const p of state.points) {
+        const d = Math.abs(state.px(p.x) - localX);
+        if (d < bestDist) { bestDist = d; nearest = p; }
+      }
+      state.hoverDot.setAttribute('cx', state.px(nearest.x));
+      state.hoverDot.setAttribute('cy', state.py(nearest.y));
+      state.hoverDot.style.display = 'block';
+
+      chartTooltip.textContent = state.viz.xCol + ': ' + formatAxisValue(nearest.x, state.xIsDate) +
+        '  ·  ' + state.viz.yCol + ': ' + formatAxisValue(nearest.y, state.yIsDate);
+      chartTooltip.style.left = (e.clientX + 14) + 'px';
+      chartTooltip.style.top = (e.clientY + 14) + 'px';
+      chartTooltip.style.display = 'block';
+    }
+
+    function hideChartTooltip(svg) {
+      if (svg._chartState) svg._chartState.hoverDot.style.display = 'none';
+      chartTooltip.style.display = 'none';
+    }
+
+    function redrawChart(viz, card) {
+      const svg = card.querySelector('.chart-svg');
+      const emptyMsg = card.querySelector('.chart-empty');
+      svg.innerHTML = '';
+      svg.style.display = 'block';
+      emptyMsg.style.display = 'none';
+
+      const xIsDate = isDateColumn(displayRows, viz.xCol);
+      const yIsDate = isDateColumn(displayRows, viz.yCol);
+
+      const points = [];
+      displayRows.forEach((row, i) => {
+        const yv = parseComparable(row[viz.yCol]);
+        if (yv === null) return;
+        let xv = parseComparable(row[viz.xCol]);
+        if (xv === null) xv = i; // fall back to row position when X isn't numeric/date
+        points.push({ x: xv, y: yv });
+      });
+
+      if (points.length === 0) {
+        svg.style.display = 'none';
+        emptyMsg.textContent = 'No numeric data for "' + viz.yCol + '" to plot.';
+        emptyMsg.style.display = 'block';
+        svg._chartState = null;
+        return;
+      }
+
+      points.sort((a, b) => a.x - b.x);
+
+      const xs = points.map(p => p.x), ys = points.map(p => p.y);
+      let xMin = Math.min(...xs), xMax = Math.max(...xs);
+      if (xMin === xMax) { xMin -= 1; xMax += 1; }
+      let yMin = Math.min(...ys), yMax = Math.max(...ys);
+      if (viz.type === 'bar') yMin = Math.min(0, yMin);
+      if (yMin === yMax) { yMin -= 1; yMax += 1; }
+
+      const innerW = CHART_W - CHART_PAD.left - CHART_PAD.right;
+      const innerH = CHART_H - CHART_PAD.top - CHART_PAD.bottom;
+      const px = (x) => CHART_PAD.left + ((x - xMin) / (xMax - xMin)) * innerW;
+      const py = (y) => CHART_PAD.top + innerH - ((y - yMin) / (yMax - yMin)) * innerH;
+
+      if (yMin < 0 && yMax > 0) {
+        svg.appendChild(svgEl('line', {
+          x1: CHART_PAD.left, x2: CHART_W - CHART_PAD.right, y1: py(0), y2: py(0), class: 'chart-zeroline'
+        }));
+      }
+
+      if (viz.type === 'bar') {
+        const barW = Math.max(1, innerW / points.length - 1);
+        points.forEach(p => {
+          const y0 = py(Math.max(0, yMin));
+          const y1 = py(p.y);
+          svg.appendChild(svgEl('rect', {
+            x: px(p.x) - barW / 2, y: Math.min(y0, y1),
+            width: barW, height: Math.max(1, Math.abs(y1 - y0)), class: 'chart-mark'
+          }));
+        });
+      } else {
+        if (viz.type === 'line') {
+          const d = points.map((p, i) => (i === 0 ? 'M' : 'L') + px(p.x) + ' ' + py(p.y)).join(' ');
+          svg.appendChild(svgEl('path', { d, class: 'chart-line' }));
+        }
+        points.forEach(p => {
+          svg.appendChild(svgEl('circle', { cx: px(p.x), cy: py(p.y), r: viz.type === 'line' ? 2.5 : 3.5, class: 'chart-mark' }));
+        });
+      }
+
+      const yMaxLabel = svgEl('text', { x: 4, y: py(yMax) + 8, class: 'chart-axis-label' });
+      yMaxLabel.textContent = formatAxisValue(yMax, yIsDate);
+      const yMinLabel = svgEl('text', { x: 4, y: py(yMin) - 2, class: 'chart-axis-label' });
+      yMinLabel.textContent = formatAxisValue(yMin, yIsDate);
+      const xMinLabel = svgEl('text', { x: CHART_PAD.left, y: CHART_H - 6, class: 'chart-axis-label' });
+      xMinLabel.textContent = formatAxisValue(xMin, xIsDate);
+      const xMaxLabel = svgEl('text', { x: CHART_W - CHART_PAD.right, y: CHART_H - 6, class: 'chart-axis-label', 'text-anchor': 'end' });
+      xMaxLabel.textContent = formatAxisValue(xMax, xIsDate);
+      svg.append(yMaxLabel, yMinLabel, xMinLabel, xMaxLabel);
+
+      const hoverDot = svgEl('circle', { r: 4, class: 'chart-hover-dot' });
+      svg.appendChild(hoverDot);
+
+      svg._chartState = { points, px, py, viz, hoverDot, xIsDate, yIsDate };
+    }
+
+    function redrawAllCharts() {
+      document.querySelectorAll('.chart-card').forEach(card => {
+        const viz = visualizations.find(v => v.id === Number(card.dataset.id));
+        if (viz) redrawChart(viz, card);
+      });
+    }
+
+    function renderCharts() {
+      const list = document.getElementById('chartsList');
+      list.innerHTML = '';
+      visualizations.forEach(viz => {
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+        card.dataset.id = viz.id;
+
+        const controls = document.createElement('div');
+        controls.className = 'row chart-controls';
+
+        const xSel = document.createElement('select');
+        allColumns.forEach(c => {
+          const o = document.createElement('option'); o.value = c; o.textContent = c;
+          if (c === viz.xCol) o.selected = true;
+          xSel.appendChild(o);
+        });
+        xSel.addEventListener('change', () => { viz.xCol = xSel.value; redrawChart(viz, card); });
+
+        const vsLabel = document.createElement('span');
+        vsLabel.className = 'chart-vs-label';
+        vsLabel.textContent = 'vs';
+
+        const ySel = document.createElement('select');
+        allColumns.forEach(c => {
+          const o = document.createElement('option'); o.value = c; o.textContent = c;
+          if (c === viz.yCol) o.selected = true;
+          ySel.appendChild(o);
+        });
+        ySel.addEventListener('change', () => { viz.yCol = ySel.value; redrawChart(viz, card); });
+
+        const typeSel = document.createElement('select');
+        ['line', 'scatter', 'bar'].forEach(t => {
+          const o = document.createElement('option'); o.value = t; o.textContent = t[0].toUpperCase() + t.slice(1);
+          if (t === viz.type) o.selected = true;
+          typeSel.appendChild(o);
+        });
+        typeSel.addEventListener('change', () => { viz.type = typeSel.value; redrawChart(viz, card); });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '✕ Remove';
+        removeBtn.className = 'icon-btn secondary';
+        removeBtn.addEventListener('click', () => {
+          visualizations = visualizations.filter(v => v.id !== viz.id);
+          renderCharts();
+        });
+
+        controls.append(xSel, vsLabel, ySel, typeSel, removeBtn);
+
+        const svgWrap = document.createElement('div');
+        svgWrap.className = 'chart-svg-wrap';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'chart-svg');
+        svg.setAttribute('viewBox', '0 0 ' + CHART_W + ' ' + CHART_H);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.addEventListener('mousemove', (e) => onChartHover(e, svg));
+        svg.addEventListener('mouseleave', () => hideChartTooltip(svg));
+
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'chart-empty';
+
+        svgWrap.append(svg, emptyMsg);
+        card.append(controls, svgWrap);
+        list.appendChild(card);
+
+        redrawChart(viz, card);
+      });
+      scheduleSyncPanelHeights();
+    }
+
     // ---------- Table rendering ----------
     let displayRows = [];
     let colWidths = {};
@@ -1266,6 +1554,7 @@
       allColumns = ['#'].concat(lastParsed.columns, derivedColumns);
       renderColumnsPreview();
       renderFilters();
+      renderCharts();
       updateTimestampColumnOptions();
       updateSplitSummary();
       updateDeriveSummary();
@@ -1290,6 +1579,7 @@
       renderTableBody();
       renderStats();
       updateFilterSummary();
+      redrawAllCharts();
     }
 
     // Initial run happens once Monaco's editor is created (see require() callback above),
