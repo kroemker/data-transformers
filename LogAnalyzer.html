@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Log Analyzer (Dark Mode)</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --fg: #d4d4d4;
+      --label-fg: #cfcfcf;
+      --panel-bg: #2d2d2d;
+      --border: #444;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --error-fg: #ff5555;
+      --error-bg: #2e1e1e;
+      --error-border: #ff5555;
+      --accent: #4ec9b0;
+      --table-header-bg: #252526;
+      --row-alt-bg: #262626;
+      --chip-bg: #3c3c3c;
+    }
+
+    html[data-theme="light"] {
+      --bg: #ffffff;
+      --fg: #1e1e1e;
+      --label-fg: #333333;
+      --panel-bg: #f5f5f5;
+      --border: #ccc;
+      --btn-bg: #0e639c;
+      --btn-bg-hover: #1177bb;
+      --btn-fg: #ffffff;
+      --error-fg: #cc0000;
+      --error-bg: #fff0f0;
+      --error-border: #cc0000;
+      --accent: #0e8a6d;
+      --table-header-bg: #ececec;
+      --row-alt-bg: #f7f7f7;
+      --chip-bg: #e5e5e5;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      box-sizing: border-box;
+      gap: 4px;
+      min-height: 100%;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px;
+    }
+
+    label {
+      margin: 10px 0 5px;
+      font-weight: bold;
+      color: var(--label-fg);
+      display: block;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-header label { margin: 0; }
+
+    textarea, input[type="text"], select {
+      font-family: monospace;
+      font-size: 13px;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      background-color: var(--panel-bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
+    }
+
+    #inputText {
+      width: 100%;
+      height: 120px;
+      resize: vertical;
+      margin-bottom: 4px;
+      text-wrap-mode: nowrap;
+    }
+
+    #regexInput { flex: 1; min-width: 260px; }
+
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      background-color: var(--btn-bg);
+      color: var(--btn-fg);
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover { background-color: var(--btn-bg-hover); }
+
+    button.icon-btn {
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+
+    button.secondary {
+      background-color: var(--chip-bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
+    }
+
+    .error-box {
+      color: var(--error-fg);
+      font-weight: bold;
+      border: 1px solid var(--error-border);
+      padding: 8px;
+      background-color: var(--error-bg);
+      display: none;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+
+    .theme-toggle { margin: 0; }
+
+    #editorContainer {
+      height: 140px;
+      border: 1px solid var(--border);
+      margin-bottom: 4px;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .filter-row select { max-width: 200px; }
+    .filter-row input[type="text"] { flex: 1; min-width: 120px; }
+
+    .columns-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 4px 0 8px;
+    }
+
+    .chip {
+      background: var(--chip-bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    #timelineWrap {
+      position: relative;
+      border: 1px solid var(--border);
+      background: var(--panel-bg);
+      margin-bottom: 4px;
+    }
+
+    .timeline-bars {
+      display: flex;
+      align-items: flex-end;
+      height: 90px;
+      padding: 4px;
+      box-sizing: border-box;
+      gap: 1px;
+    }
+
+    .timeline-bar {
+      flex: 1;
+      background: var(--accent);
+      min-height: 1px;
+    }
+
+    .timeline-brush {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: color-mix(in srgb, var(--accent) 25%, transparent);
+      border-left: 1px solid var(--accent);
+      border-right: 1px solid var(--accent);
+      display: none;
+      pointer-events: none;
+    }
+
+    #timelineEmpty {
+      padding: 8px;
+      font-size: 13px;
+      color: var(--label-fg);
+    }
+
+    #timelineRangeLabel {
+      font-size: 12px;
+      color: var(--label-fg);
+      padding: 2px 6px 6px;
+    }
+
+    .table-scroll {
+      overflow: auto;
+      border: 1px solid var(--border);
+      height: 420px;
+      position: relative;
+      background: var(--panel-bg);
+    }
+
+    .table-header {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--table-header-bg);
+      font-weight: bold;
+    }
+
+    .table-spacer { position: relative; }
+
+    #tableBody { position: absolute; top: 0; left: 0; right: 0; }
+
+    .table-row { position: absolute; left: 0; display: flex; }
+    .table-row:nth-child(odd) { background: var(--row-alt-bg); }
+
+    .cell {
+      flex-shrink: 0;
+      box-sizing: border-box;
+      height: 28px;
+      line-height: 22px;
+      padding: 3px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .header-cell { cursor: pointer; user-select: none; }
+
+    #statsText {
+      font-size: 12px;
+      color: var(--label-fg);
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="section-header">
+      <h1>Log Analyzer</h1>
+      <button id="themeToggle" class="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode"></button>
+    </div>
+
+    <div class="section-header">
+      <label for="inputText">Log Input:</label>
+      <div class="row">
+        <input type="file" id="fileInput" accept=".log,.txt,.json,text/plain" style="display:none">
+        <button id="uploadBtn" class="secondary icon-btn">Upload File</button>
+      </div>
+    </div>
+    <textarea id="inputText" placeholder="Paste log lines here, or upload a file..."></textarea>
+
+    <label>Column Splitting:</label>
+    <div class="row">
+      <select id="presetSelect"></select>
+      <input type="text" id="regexInput" placeholder="Regex with named groups, e.g. (?&lt;timestamp&gt;...) (?&lt;level&gt;...) (?&lt;message&gt;.*)">
+    </div>
+    <div id="parseErrorBox" class="error-box"><span id="parseErrorMsg"></span></div>
+    <div id="columnsPreview" class="columns-preview"></div>
+
+    <label>Filters:</label>
+    <div id="filtersList"></div>
+    <div class="row">
+      <button id="addFilterBtn" class="secondary icon-btn">+ Add Filter</button>
+    </div>
+
+    <div class="section-header">
+      <label for="editorContainer">Derived Columns (TypeScript):</label>
+      <div class="row">
+        <button id="runDeriveBtn" style="margin: 0;">Run</button>
+        <label style="margin: 0; display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer;">
+          <input type="checkbox" id="autoRunDerive"> Auto-run
+        </label>
+      </div>
+    </div>
+    <div id="editorContainer"></div>
+    <div id="deriveErrorBox" class="error-box"><span id="deriveErrorMsg"></span></div>
+
+    <label>Timeline:</label>
+    <div class="row" style="margin-bottom: 4px;">
+      <span style="font-weight: normal; color: var(--label-fg); font-size: 13px;">Timestamp column:</span>
+      <select id="timestampColumnSelect"></select>
+      <button id="clearTimeRangeBtn" class="secondary icon-btn" style="display:none;">Clear time range</button>
+    </div>
+    <div id="timelineWrap">
+      <div id="timelineBars" class="timeline-bars"></div>
+      <div id="timelineBrush" class="timeline-brush"></div>
+      <div id="timelineEmpty">Select a timestamp column to see the timeline.</div>
+    </div>
+    <div id="timelineRangeLabel"></div>
+
+    <label>Rows:</label>
+    <div id="statsText"></div>
+    <div class="table-scroll" id="tableScroll">
+      <div id="tableHeader" class="table-header"></div>
+      <div id="tableSpacer" class="table-spacer">
+        <div id="tableBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load TypeScript UMD build (exposes global `ts`) -->
+  <script src="https://unpkg.com/typescript@5.4.5/lib/typescript.js"></script>
+
+  <!-- Load Monaco Editor -->
+  <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const themeToggle = document.getElementById('themeToggle');
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.textContent = theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+      themeToggle.setAttribute('aria-label', theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+      if (typeof monaco !== 'undefined') {
+        monaco.editor.setTheme(theme === 'light' ? 'vs' : 'vs-dark');
+      }
+    }
+    let currentTheme = localStorage.getItem('ui.theme') || 'dark';
+    applyTheme(currentTheme);
+    themeToggle.addEventListener('click', () => {
+      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('ui.theme', currentTheme);
+      applyTheme(currentTheme);
+    });
+
+    function safeSetItem(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) { /* quota exceeded on large logs — ignore */ }
+    }
+
+    // ---------- Regex / preset presets ----------
+    const REGEX_PRESETS = [
+      { name: 'Generic (timestamp, level, message)', pattern: '^(?<timestamp>\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\s+(?<level>\\w+)\\s+(?<message>.*)$' },
+      { name: 'Syslog', pattern: '^(?<timestamp>\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+(?<host>\\S+)\\s+(?<process>[^:\\[\\s]+)(?:\\[(?<pid>\\d+)\\])?:\\s*(?<message>.*)$' },
+      { name: 'Apache/Nginx Combined Log', pattern: '^(?<ip>\\S+) \\S+ \\S+ \\[(?<timestamp>[^\\]]+)\\] "(?<request>[^"]*)" (?<status>\\d+) (?<size>\\S+)(?: "(?<referrer>[^"]*)" "(?<useragent>[^"]*)")?' },
+    ];
+    const FILTER_OPS = ['contains', 'not contains', 'equals', 'not equals', 'regex', '<', '<=', '>', '>='];
+    const ROW_HEIGHT = 28;
+
+    const presetSelect = document.getElementById('presetSelect');
+    REGEX_PRESETS.forEach((p, i) => {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = p.name;
+      presetSelect.appendChild(o);
+    });
+    const jsonOpt = document.createElement('option');
+    jsonOpt.value = '__json__';
+    jsonOpt.textContent = 'JSON Lines';
+    presetSelect.appendChild(jsonOpt);
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = 'Custom (edit regex)';
+    presetSelect.appendChild(customOpt);
+
+    const regexInput = document.getElementById('regexInput');
+    let presetMode = 'regex';
+
+    const savedPreset = localStorage.getItem('la.preset');
+    const savedRegex = localStorage.getItem('la.regex');
+    if (savedPreset === '__json__') {
+      presetSelect.value = '__json__';
+      presetMode = 'json';
+      regexInput.disabled = true;
+      regexInput.placeholder = 'Each line is parsed as JSON — columns come from its keys.';
+    } else if (savedPreset === '__custom__' && savedRegex) {
+      presetSelect.value = '__custom__';
+      regexInput.value = savedRegex;
+    } else {
+      presetSelect.value = '0';
+      regexInput.value = REGEX_PRESETS[0].pattern;
+    }
+
+    presetSelect.addEventListener('change', () => {
+      const val = presetSelect.value;
+      if (val === '__json__') {
+        presetMode = 'json';
+        regexInput.value = '';
+        regexInput.disabled = true;
+        regexInput.placeholder = 'Each line is parsed as JSON — columns come from its keys.';
+      } else if (val === '__custom__') {
+        presetMode = 'regex';
+        regexInput.disabled = false;
+        regexInput.placeholder = 'Regex with named groups, e.g. (?<timestamp>...) (?<level>...) (?<message>.*)';
+      } else {
+        presetMode = 'regex';
+        regexInput.disabled = false;
+        regexInput.value = REGEX_PRESETS[Number(val)].pattern;
+      }
+      safeSetItem('la.preset', val);
+      safeSetItem('la.regex', regexInput.value);
+      scheduleRecompute(false);
+    });
+
+    regexInput.addEventListener('input', () => {
+      if (presetMode === 'json') return;
+      presetSelect.value = '__custom__';
+      safeSetItem('la.preset', '__custom__');
+      safeSetItem('la.regex', regexInput.value);
+      scheduleRecompute(false);
+    });
+
+    // ---------- Input text + file upload ----------
+    const inputText = document.getElementById('inputText');
+    const SAMPLE_LOG = `2024-03-01T12:00:01.123Z INFO Starting server on port 8080
+2024-03-01T12:00:02.456Z INFO Request GET /api/users completed in 42ms
+2024-03-01T12:00:03.789Z ERROR Failed to connect to database
+    at Connection.connect (db.js:42)
+    at Server.start (server.js:10)
+2024-03-01T12:00:05.001Z WARN Retry attempt 1 for database connection
+2024-03-01T12:00:06.234Z INFO Request GET /api/orders completed in 128ms`;
+    inputText.value = localStorage.getItem('la.input') ?? SAMPLE_LOG;
+
+    let recomputeTimer = null;
+    function scheduleRecompute(forceDerive) {
+      clearTimeout(recomputeTimer);
+      recomputeTimer = setTimeout(() => recompute(forceDerive), 350);
+    }
+
+    inputText.addEventListener('input', () => {
+      safeSetItem('la.input', inputText.value);
+      scheduleRecompute(false);
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        inputText.value = String(reader.result);
+        safeSetItem('la.input', inputText.value);
+        recompute(false);
+      };
+      reader.readAsText(file);
+    });
+
+    // ---------- Parsing ----------
+    function buildRegex(pattern) {
+      if (!/\(\?<\w+>/.test(pattern)) {
+        throw new Error('Regex must contain at least one named capture group, e.g. (?<message>.*)');
+      }
+      return new RegExp(pattern);
+    }
+
+    function flattenObject(obj, prefix, out) {
+      out = out || {};
+      for (const [k, v] of Object.entries(obj)) {
+        const key = prefix ? prefix + '.' + k : k;
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          flattenObject(v, key, out);
+        } else {
+          out[key] = Array.isArray(v) ? JSON.stringify(v) : String(v);
+        }
+      }
+      return out;
+    }
+
+    function parseLog(text, regexSource, mode) {
+      const lines = text.split(/\r?\n/);
+      if (lines.length && lines[lines.length - 1] === '') lines.pop();
+      let re = null;
+      if (mode !== 'json') re = buildRegex(regexSource);
+
+      const rows = [];
+      const colOrder = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let matched = null;
+        if (mode === 'json') {
+          try {
+            const obj = JSON.parse(line);
+            if (obj && typeof obj === 'object' && !Array.isArray(obj)) matched = flattenObject(obj);
+          } catch (e) { /* not JSON — falls through to continuation/raw handling */ }
+        } else {
+          const m = re.exec(line);
+          if (m && m.groups) matched = Object.assign({}, m.groups);
+        }
+
+        if (matched) {
+          for (const k of Object.keys(matched)) {
+            if (!colOrder.includes(k)) colOrder.push(k);
+            if (matched[k] === undefined) matched[k] = '';
+          }
+          rows.push(Object.assign({ '#': String(i + 1) }, matched));
+        } else if (rows.length > 0) {
+          // Unmatched line (e.g. a stack trace): appended to the last capture
+          // group of the previous row, since that's usually the message field.
+          const contCol = colOrder[colOrder.length - 1];
+          if (contCol) {
+            const prev = rows[rows.length - 1];
+            prev[contCol] = (prev[contCol] ? prev[contCol] + '\n' : '') + line;
+          }
+        } else if (line !== '') {
+          if (!colOrder.includes('__raw')) colOrder.push('__raw');
+          rows.push({ '#': String(i + 1), __raw: line });
+        }
+      }
+      return { rows, columns: colOrder };
+    }
+
+    // ---------- Derived columns ----------
+    let editor;
+    const autoRunDeriveCheckbox = document.getElementById('autoRunDerive');
+    autoRunDeriveCheckbox.checked = localStorage.getItem('la.autorun') === 'true';
+    autoRunDeriveCheckbox.addEventListener('change', () => {
+      safeSetItem('la.autorun', autoRunDeriveCheckbox.checked);
+      if (autoRunDeriveCheckbox.checked) recompute(true);
+    });
+    document.getElementById('runDeriveBtn').addEventListener('click', () => recompute(true));
+
+    require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editorContainer'), {
+        value: localStorage.getItem('la.code') || `function process(row: Record<string, string>): Record<string, string> {
+  // Return new columns derived from the parsed ones, e.g.:
+  // return { latencyMs: row.message.match(/(\\d+)ms/)?.[1] ?? '' };
+  return {};
+}`,
+        language: 'typescript',
+        theme: currentTheme === 'light' ? 'vs' : 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false }
+      });
+      editor.onDidChangeModelContent(() => {
+        safeSetItem('la.code', editor.getValue());
+        if (autoRunDeriveCheckbox.checked) scheduleRecompute(true);
+      });
+      recompute(autoRunDeriveCheckbox.checked);
+    });
+
+    function runDerive(rows, tsCode) {
+      const jsCode = ts.transpile(tsCode);
+      const func = new Function(jsCode + '\nreturn process;')();
+      if (typeof func !== 'function') throw new Error('Code must define a process(row) function.');
+      const derivedNames = [];
+      const seen = new Set();
+      rows.forEach((row, i) => {
+        let result;
+        try {
+          result = func(Object.assign({}, row));
+        } catch (e) {
+          throw new Error('Row ' + (i + 1) + ': ' + e.message);
+        }
+        if (result && typeof result === 'object') {
+          for (const k of Object.keys(result)) {
+            if (!seen.has(k)) { seen.add(k); derivedNames.push(k); }
+            row[k] = result[k] == null ? '' : String(result[k]);
+          }
+        }
+      });
+      return derivedNames;
+    }
+
+    // ---------- Filters ----------
+    let activeFilters = [];
+    let allColumns = ['#'];
+
+    function evalFilter(cellRaw, op, value) {
+      const cell = cellRaw ?? '';
+      switch (op) {
+        case 'contains': return cell.includes(value);
+        case 'not contains': return !cell.includes(value);
+        case 'equals': return cell === value;
+        case 'not equals': return cell !== value;
+        case 'regex':
+          try { return new RegExp(value).test(cell); } catch (e) { return false; }
+        case '<': case '<=': case '>': case '>=': {
+          const a = parseComparable(cell), b = parseComparable(value);
+          if (a === null || b === null) return false;
+          if (op === '<') return a < b;
+          if (op === '<=') return a <= b;
+          if (op === '>') return a > b;
+          return a >= b;
+        }
+      }
+      return true;
+    }
+
+    function parseComparable(s) {
+      if (s === '' || s == null) return null;
+      const n = Number(s);
+      if (!Number.isNaN(n)) return n;
+      const d = Date.parse(s);
+      if (!Number.isNaN(d)) return d;
+      return null;
+    }
+
+    function applyFilters(rows, filters) {
+      if (!filters.length) return rows;
+      return rows.filter(row => filters.every(f => !f.column || evalFilter(row[f.column], f.op, f.value)));
+    }
+
+    function renderFilters() {
+      const list = document.getElementById('filtersList');
+      list.innerHTML = '';
+      activeFilters.forEach((f, idx) => {
+        const row = document.createElement('div');
+        row.className = 'filter-row';
+
+        const colSel = document.createElement('select');
+        allColumns.forEach(c => {
+          const o = document.createElement('option');
+          o.value = c; o.textContent = c;
+          if (c === f.column) o.selected = true;
+          colSel.appendChild(o);
+        });
+        colSel.addEventListener('change', () => { f.column = colSel.value; applyPipelineAndRender(); });
+
+        const opSel = document.createElement('select');
+        FILTER_OPS.forEach(op => {
+          const o = document.createElement('option');
+          o.value = op; o.textContent = op;
+          if (op === f.op) o.selected = true;
+          opSel.appendChild(o);
+        });
+        opSel.addEventListener('change', () => { f.op = opSel.value; applyPipelineAndRender(); });
+
+        const valInput = document.createElement('input');
+        valInput.type = 'text';
+        valInput.value = f.value;
+        valInput.placeholder = 'value';
+        let debTimer;
+        valInput.addEventListener('input', () => {
+          f.value = valInput.value;
+          clearTimeout(debTimer);
+          debTimer = setTimeout(applyPipelineAndRender, 300);
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '✕';
+        removeBtn.className = 'icon-btn secondary';
+        removeBtn.addEventListener('click', () => {
+          activeFilters.splice(idx, 1);
+          renderFilters();
+          applyPipelineAndRender();
+        });
+
+        row.append(colSel, opSel, valInput, removeBtn);
+        list.appendChild(row);
+      });
+    }
+
+    document.getElementById('addFilterBtn').addEventListener('click', () => {
+      activeFilters.push({ column: allColumns[0] || '', op: 'contains', value: '' });
+      renderFilters();
+      applyPipelineAndRender();
+    });
+
+    // ---------- Sorting ----------
+    let sortState = { column: null, dir: 1 };
+    function applySort(rows) {
+      if (!sortState.column) return rows;
+      const col = sortState.column, dir = sortState.dir;
+      return rows.slice().sort((a, b) => {
+        const av = a[col] ?? '', bv = b[col] ?? '';
+        const an = parseComparable(av), bn = parseComparable(bv);
+        const cmp = (an !== null && bn !== null) ? an - bn : String(av).localeCompare(String(bv));
+        return cmp * dir;
+      });
+    }
+
+    // ---------- Timeline ----------
+    function guessTimestampColumn(rows, columns) {
+      let best = null, bestHits = 0;
+      const sample = rows.slice(0, 50);
+      for (const col of columns) {
+        let hits = 0, total = 0;
+        for (const row of sample) {
+          const v = row[col];
+          if (!v) continue;
+          total++;
+          if (!Number.isNaN(Date.parse(v))) hits++;
+        }
+        if (total > 0 && hits / total > 0.6 && hits > bestHits) { bestHits = hits; best = col; }
+      }
+      return best;
+    }
+
+    function buildTimeline(rows, col, bucketCount) {
+      const times = [];
+      for (const row of rows) {
+        const t = Date.parse(row[col]);
+        if (!Number.isNaN(t)) times.push(t);
+      }
+      if (!times.length) return null;
+      const min = Math.min(...times), max = Math.max(...times);
+      const span = Math.max(max - min, 1);
+      const buckets = new Array(bucketCount).fill(0);
+      for (const t of times) {
+        let idx = Math.floor(((t - min) / span) * bucketCount);
+        if (idx >= bucketCount) idx = bucketCount - 1;
+        buckets[idx]++;
+      }
+      return { min, max, buckets };
+    }
+
+    let timelineMeta = null;
+    let timeRange = null;
+
+    function renderTimeline(rows, tsCol) {
+      const bars = document.getElementById('timelineBars');
+      const emptyMsg = document.getElementById('timelineEmpty');
+      const rangeLabel = document.getElementById('timelineRangeLabel');
+      const bucketCount = 80;
+
+      if (!tsCol) {
+        bars.innerHTML = '';
+        timelineMeta = null;
+        emptyMsg.style.display = 'block';
+        emptyMsg.textContent = 'Select a timestamp column to see the timeline.';
+        rangeLabel.textContent = '';
+        return;
+      }
+      const data = buildTimeline(rows, tsCol, bucketCount);
+      if (!data) {
+        bars.innerHTML = '';
+        timelineMeta = null;
+        emptyMsg.style.display = 'block';
+        emptyMsg.textContent = 'No parseable timestamps found in column "' + tsCol + '".';
+        rangeLabel.textContent = '';
+        return;
+      }
+      emptyMsg.style.display = 'none';
+      timelineMeta = { min: data.min, max: data.max };
+      const maxCount = Math.max.apply(null, data.buckets.concat([1]));
+      let html = '';
+      for (let i = 0; i < data.buckets.length; i++) {
+        const count = data.buckets[i];
+        const pct = (count / maxCount) * 100;
+        const bucketStart = new Date(data.min + (i / bucketCount) * (data.max - data.min));
+        html += '<div class="timeline-bar" style="height:' + pct + '%" title="' +
+          escapeHtml(bucketStart.toLocaleString()) + ': ' + count + ' rows"></div>';
+      }
+      bars.innerHTML = html;
+      rangeLabel.textContent = new Date(data.min).toLocaleString() + '  →  ' +
+        new Date(data.max).toLocaleString() + '  (' + rows.length + ' rows)';
+    }
+
+    const timelineWrap = document.getElementById('timelineWrap');
+    const timelineBrush = document.getElementById('timelineBrush');
+    let dragStartX = null;
+
+    timelineWrap.addEventListener('mousedown', (e) => {
+      if (!timelineMeta) return;
+      const rect = timelineWrap.getBoundingClientRect();
+      dragStartX = e.clientX - rect.left;
+      timelineBrush.style.display = 'block';
+      timelineBrush.style.left = dragStartX + 'px';
+      timelineBrush.style.width = '0px';
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (dragStartX === null) return;
+      const rect = timelineWrap.getBoundingClientRect();
+      const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
+      timelineBrush.style.left = Math.min(dragStartX, x) + 'px';
+      timelineBrush.style.width = Math.abs(x - dragStartX) + 'px';
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (dragStartX === null) return;
+      const rect = timelineWrap.getBoundingClientRect();
+      const x = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
+      const x1 = Math.min(dragStartX, x), x2 = Math.max(dragStartX, x);
+      dragStartX = null;
+      timelineBrush.style.display = 'none';
+      if (!timelineMeta || x2 - x1 < 4) return;
+      const span = timelineMeta.max - timelineMeta.min;
+      timeRange = {
+        start: timelineMeta.min + (x1 / rect.width) * span,
+        end: timelineMeta.min + (x2 / rect.width) * span,
+      };
+      document.getElementById('clearTimeRangeBtn').style.display = 'inline-block';
+      applyPipelineAndRender();
+    });
+    document.getElementById('clearTimeRangeBtn').addEventListener('click', () => {
+      timeRange = null;
+      document.getElementById('clearTimeRangeBtn').style.display = 'none';
+      applyPipelineAndRender();
+    });
+
+    const timestampColumnSelect = document.getElementById('timestampColumnSelect');
+    timestampColumnSelect.addEventListener('change', () => {
+      timeRange = null;
+      document.getElementById('clearTimeRangeBtn').style.display = 'none';
+      applyPipelineAndRender();
+    });
+
+    function updateTimestampColumnOptions() {
+      const prev = timestampColumnSelect.value;
+      const candidates = lastParsed.columns.concat(derivedColumns);
+      timestampColumnSelect.innerHTML = '<option value="">(none)</option>';
+      candidates.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        timestampColumnSelect.appendChild(o);
+      });
+      if (prev && candidates.includes(prev)) {
+        timestampColumnSelect.value = prev;
+      } else {
+        timestampColumnSelect.value = guessTimestampColumn(lastParsed.rows, candidates) || '';
+        timeRange = null;
+        document.getElementById('clearTimeRangeBtn').style.display = 'none';
+      }
+    }
+
+    // ---------- Table rendering ----------
+    let displayRows = [];
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function colWidth(col) {
+      return col === '#' ? 60 : 200;
+    }
+
+    function renderTableHeader() {
+      const header = document.getElementById('tableHeader');
+      header.innerHTML = allColumns.map(col => {
+        const arrow = sortState.column === col ? (sortState.dir === 1 ? ' ▲' : ' ▼') : '';
+        return '<div class="cell header-cell" data-col="' + escapeHtml(col) + '" style="width:' + colWidth(col) + 'px">' +
+          escapeHtml(col) + arrow + '</div>';
+      }).join('');
+      header.querySelectorAll('.header-cell').forEach(el => {
+        el.addEventListener('click', () => {
+          const col = el.dataset.col;
+          if (sortState.column === col) sortState.dir *= -1;
+          else { sortState = { column: col, dir: 1 }; }
+          applyPipelineAndRender();
+        });
+      });
+    }
+
+    function renderTableBody() {
+      const scroll = document.getElementById('tableScroll');
+      const spacer = document.getElementById('tableSpacer');
+      spacer.style.height = (displayRows.length * ROW_HEIGHT) + 'px';
+
+      const headerHeight = document.getElementById('tableHeader').offsetHeight || ROW_HEIGHT;
+      const effectiveScrollTop = Math.max(0, scroll.scrollTop - headerHeight);
+      const buffer = 8;
+      const startIdx = Math.max(0, Math.floor(effectiveScrollTop / ROW_HEIGHT) - buffer);
+      const endIdx = Math.min(displayRows.length, Math.ceil((effectiveScrollTop + scroll.clientHeight) / ROW_HEIGHT) + buffer);
+
+      let html = '';
+      for (let i = startIdx; i < endIdx; i++) {
+        const row = displayRows[i];
+        html += '<div class="table-row" style="top:' + (i * ROW_HEIGHT) + 'px">';
+        for (const col of allColumns) {
+          const val = row[col] ?? '';
+          html += '<div class="cell" style="width:' + colWidth(col) + 'px" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</div>';
+        }
+        html += '</div>';
+      }
+      document.getElementById('tableBody').innerHTML = html;
+    }
+
+    document.getElementById('tableScroll').addEventListener('scroll', () => {
+      requestAnimationFrame(renderTableBody);
+    });
+
+    function renderStats() {
+      document.getElementById('statsText').textContent =
+        displayRows.length + ' / ' + lastParsed.rows.length + ' rows shown' +
+        (derivedColumns.length ? '  ·  ' + derivedColumns.length + ' derived column(s)' : '');
+    }
+
+    function renderColumnsPreview() {
+      document.getElementById('columnsPreview').innerHTML = allColumns
+        .map(c => '<span class="chip">' + escapeHtml(c) + '</span>')
+        .join('');
+    }
+
+    // ---------- Pipeline ----------
+    let lastParsed = { rows: [], columns: [] };
+    let derivedColumns = [];
+
+    function showError(boxId, msgId, message) {
+      document.getElementById(boxId).style.display = 'block';
+      document.getElementById(msgId).textContent = message;
+    }
+    function hideError(boxId) {
+      document.getElementById(boxId).style.display = 'none';
+    }
+
+    function recompute(forceDerive) {
+      hideError('parseErrorBox');
+      hideError('deriveErrorBox');
+
+      try {
+        lastParsed = parseLog(inputText.value, regexInput.value, presetMode);
+      } catch (e) {
+        showError('parseErrorBox', 'parseErrorMsg', e.message);
+        lastParsed = { rows: [], columns: [] };
+      }
+
+      derivedColumns = [];
+      const code = editor ? editor.getValue().trim() : '';
+      if (code && (forceDerive || autoRunDeriveCheckbox.checked) && typeof ts !== 'undefined') {
+        try {
+          derivedColumns = runDerive(lastParsed.rows, code);
+        } catch (e) {
+          showError('deriveErrorBox', 'deriveErrorMsg', e.message);
+        }
+      }
+
+      allColumns = ['#'].concat(lastParsed.columns, derivedColumns);
+      renderColumnsPreview();
+      renderFilters();
+      updateTimestampColumnOptions();
+      applyPipelineAndRender();
+    }
+
+    function applyPipelineAndRender() {
+      let rows = applyFilters(lastParsed.rows, activeFilters);
+      const tsCol = timestampColumnSelect.value;
+      renderTimeline(rows, tsCol);
+
+      if (timeRange && tsCol) {
+        rows = rows.filter(r => {
+          const t = Date.parse(r[tsCol]);
+          return !Number.isNaN(t) && t >= timeRange.start && t <= timeRange.end;
+        });
+      }
+      rows = applySort(rows);
+      displayRows = rows;
+
+      renderTableHeader();
+      renderTableBody();
+      renderStats();
+    }
+
+    // Initial run happens once Monaco's editor is created (see require() callback above),
+    // since recompute() needs editor.getValue() for the derive step.
+  </script>
+</body>
+</html>
