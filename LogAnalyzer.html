@@ -153,11 +153,21 @@
 
     /* ---------- Pipeline row ---------- */
     .pipeline-row {
+      position: relative;
+      z-index: 16;
       display: flex;
       align-items: flex-start;
       gap: 4px;
       margin: 16px 0 4px;
       flex-shrink: 0;
+    }
+
+    #pipelineScrim {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 15;
     }
 
     .pipeline-endpoint {
@@ -228,28 +238,29 @@
     .node-body {
       display: none;
       position: absolute;
-      top: calc(100% + 4px);
+      bottom: calc(100% + 4px);
       left: 50%;
       transform: translateX(-50%);
-      min-width: 380px;
-      max-width: 520px;
+      width: min(70vw, 560px);
+      max-height: min(70vh, 560px);
+      overflow-y: auto;
       background: var(--panel-bg);
       border: 1px solid var(--border);
       border-radius: 4px;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
       padding: 10px 12px;
       z-index: 20;
     }
     .pipeline-node.expanded .node-body { display: block; }
     .pipeline-node.has-error .node-body { border-color: var(--error-border); }
-    #splitNode .node-body { left: 0; transform: none; min-width: 480px; max-width: 720px; }
-    #deriveNode .node-body { min-width: 480px; max-width: 720px; }
+    #splitNode .node-body { left: 0; transform: none; width: min(85vw, 900px); }
+    #deriveNode .node-body { width: min(85vw, 900px); }
     #filterNode .node-body { left: auto; right: 0; transform: none; }
 
     .node-body label:first-child { margin-top: 0; }
 
     #editorContainer {
-      height: 260px;
+      height: min(50vh, 420px);
       border: 1px solid var(--border);
       margin-bottom: 4px;
     }
@@ -508,6 +519,7 @@
       </div>
     </div>
 
+    <div id="pipelineScrim"></div>
     <div class="pipeline-row">
       <div class="pipeline-endpoint">📥 Raw Input</div>
       <span class="arrow"></span>
@@ -616,6 +628,11 @@
     }
 
     // ---------- Pipeline node expand/collapse ----------
+    const pipelineScrim = document.getElementById('pipelineScrim');
+    function updatePipelineScrim() {
+      pipelineScrim.style.display = document.querySelector('.pipeline-node.expanded') ? 'block' : 'none';
+    }
+
     document.querySelectorAll('.node-header').forEach(header => {
       header.addEventListener('click', () => {
         const node = header.closest('.pipeline-node');
@@ -625,12 +642,14 @@
           // Monaco was laid out while hidden; force a re-measure now that it's visible.
           requestAnimationFrame(() => { if (editor) editor.layout(); });
         }
+        updatePipelineScrim();
       });
     });
     document.addEventListener('click', (e) => {
       document.querySelectorAll('.pipeline-node.expanded').forEach(node => {
         if (!node.contains(e.target)) node.classList.remove('expanded');
       });
+      updatePipelineScrim();
     });
 
     // ---------- Full-height layout: input/table fill remaining space, and the
